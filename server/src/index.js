@@ -1,14 +1,13 @@
-import { AutoRouter, cors } from 'itty-router';
+import { Router, cors } from 'itty-router';
 
-// 1. CORS & Preflight Setup
+// 1. CORS Setup
 const { preflight, corsify } = cors({
   origin: '*',
-  headers: {
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-User-Email',
-  }
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-User-Email'],
 });
 
-const router = AutoRouter();
+const router = Router();
 
 // 2. Auth Middleware
 const withAuth = (request) => {
@@ -19,19 +18,27 @@ const withAuth = (request) => {
   request.userEmail = userEmail;
 };
 
-// 3. Logger & Preflight Global
+// 3. Logger & Preflight
 router.all('*', (request) => {
-  console.log('[Request]', request.method, request.url);
+  console.log('[Worker Request]', request.method, request.url);
   return preflight(request);
 });
 
 // 4. API Routes
+// Health Check
+router.get('/', () => new Response('Leca API v6 - Online 🥂', {
+  status: 200,
+  headers: { 'content-type': 'text/plain; charset=UTF-8' }
+}));
+
 // GET all tasks
 router.get('/api/tasks', withAuth, async (request, env) => {
   const { results } = await env.DB.prepare(
     'SELECT * FROM tasks WHERE user_email = ? ORDER BY created_at DESC'
   ).bind(request.userEmail).all();
-  return results;
+  return new Response(JSON.stringify(results), {
+    headers: { 'content-type': 'application/json' }
+  });
 });
 
 // UPSERT a task
@@ -39,7 +46,6 @@ router.post('/api/tasks', withAuth, async (request, env) => {
   try {
     const body = await request.json();
     const { uuid, name, targetFreq, completions } = body;
-    const email = request.userEmail;
 
     if (!uuid || !name) {
       return new Response('Missing required fields', { status: 400 });
@@ -55,7 +61,7 @@ router.post('/api/tasks', withAuth, async (request, env) => {
         updated_at = excluded.updated_at
     `).bind(
       uuid,
-      email,
+      request.userEmail,
       name,
       targetFreq || 1,
       JSON.stringify(completions || []),
@@ -69,17 +75,20 @@ router.post('/api/tasks', withAuth, async (request, env) => {
   }
 });
 
-// DEBUG endpoint (Public for visibility during dev)
+// DEBUG endpoint
 router.get('/api/debug', async (request, env) => {
   try {
-    const tasksCount = await env.DB.prepare('SELECT COUNT(*) as total FROM tasks').first('total');
+    const tasksCountRes = await env.DB.prepare('SELECT COUNT(*) as total FROM tasks').first();
+    const tasksCount = tasksCountRes ? tasksCountRes.total : 0;
     const users = await env.DB.prepare('SELECT email, last_login FROM users ORDER BY last_login DESC LIMIT 5').all();
+
     return new Response(JSON.stringify({
       status: 'online',
       database: 'connected',
       stats: { tasks: tasksCount },
       recent_logins: users.results,
-      server_time: new Date().toISOString()
+      server_time: new Date().toISOString(),
+      request_url: request.url
     }), { headers: { 'content-type': 'application/json' } });
   } catch (err) {
     return new Response(JSON.stringify({ status: 'error', error: err.message }), {
@@ -119,7 +128,10 @@ router.delete('/api/tasks/:uuid', withAuth, async (request, env) => {
   return new Response('Deleted', { status: 200 });
 });
 
+// 404 Handler
+router.all('*', () => new Response('404 Not Found 🥂', { status: 404 }));
+
 // 5. Final Export
 export default {
-  fetch: (request, env, ctx) => router.fetch(request, env, ctx).then(corsify)
+  fetch: (request, env, ctx) => router.handle(request, env, ctx).then(corsify)
 };
