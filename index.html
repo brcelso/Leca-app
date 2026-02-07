@@ -1,14 +1,28 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Leca - Hábitos Profissionais</title>
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Leca - Hábitos Profissionais</title>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script>
+    window.onerror = function (msg, url, line, col, error) {
+      document.body.innerHTML = '<div style="background:black;color:red;padding:20px;font-size:20px;z-index:9999;position:fixed;top:0;left:0;width:100%;height:100%">' +
+        '<h3>CRITICAL ERROR:</h3>' + msg + '<br>Line: ' + line + '<br>URL: ' + url + '</div>';
+      return false;
+    };
+    window.onunhandledrejection = function (event) {
+      document.body.innerHTML = '<div style="background:black;color:orange;padding:20px;font-size:20px;z-index:9999;position:fixed;top:0;left:0;width:100%;height:100%">' +
+        '<h3>PROMISE REJECTION:</h3>' + event.reason + '</div>';
+    };
+  </script>
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+
 </html>

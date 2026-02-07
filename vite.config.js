@@ -6,6 +6,6 @@ export default defineConfig({
   plugins: [react()],
   base: '/Leca-app/',
   build: {
-    target: 'es2020', // Ensure compatibility with Safari < 14
+    target: 'es2015', // Maximum compatibility for older Safari
   }
 })
