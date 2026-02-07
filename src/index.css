@@ -415,10 +415,12 @@ td {
 }
 
 #googleBtn {
-  margin: 2rem 0;
+  margin: 1.5rem auto;
   display: flex;
   justify-content: center;
+  align-items: center;
   width: 100%;
+  min-height: 44px;
 }
 
 .user-avatar {

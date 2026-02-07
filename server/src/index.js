@@ -1,6 +1,10 @@
 import { AutoRouter, cors } from 'itty-router';
 
-const { preflight, corsify } = cors();
+const { preflight, corsify } = cors({
+  headers: {
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-User-Email',
+  }
+});
 const router = AutoRouter({
   before: [preflight]
 });
