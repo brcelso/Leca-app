@@ -14,6 +14,17 @@ function App() {
   const tasks = useLiveQuery(() => db.tasks.toArray(), []) || [];
   const history = useLiveQuery(() => db.history.orderBy('weekStart').reverse().toArray(), []) || [];
 
+  // SAFARI FIX: Safe date parsing helper
+  const safeDate = (dateStr) => {
+    if (!dateStr) return new Date();
+    // Replace SQL space with ISO T, handle invalid strings gracefully
+    try {
+      return new Date(dateStr.toString().replace(' ', 'T'));
+    } catch (e) {
+      return new Date();
+    }
+  };
+
   const [user, setUser] = useState(JSON.parse(localStorage.getItem('leca_user') || 'null'));
   const [showModal, setShowModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -158,8 +169,8 @@ function App() {
               updatedAt: r.updated_at
             });
           } else {
-            const remoteTS = new Date(r.updated_at || r.created_at).getTime();
-            const localTS = new Date(local.updatedAt || local.createdAt).getTime();
+            const remoteTS = safeDate(r.updated_at || r.created_at).getTime();
+            const localTS = safeDate(local.updatedAt || local.createdAt).getTime();
 
             // Merge completions sets
             const localCompletions = local.completions || [];
@@ -459,7 +470,7 @@ function App() {
             {history.length === 0 ? <p style={{ color: 'var(--text-muted)', textAlign: 'center', gridColumn: '1/-1' }}>Vazio.</p> : history.map((h) => (
               <div key={h.id} className="glass-card" style={{ padding: '1rem', background: 'rgba(255,255,255,0.05)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                  <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>Semana {format(parseISO(h.weekStart), 'dd/MM')}</span>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>Semana {format(safeDate(h.weekStart), 'dd/MM')}</span>
                   <span style={{ color: 'var(--success)', fontWeight: 700 }}>{h.score}%</span>
                 </div>
                 <div className="progress-bar-container"><div className="progress-bar" style={{ width: `${h.score}%` }}></div></div>

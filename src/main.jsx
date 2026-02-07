@@ -20,7 +20,7 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ color: 'white', padding: '2rem', textAlign: 'center', fontFamily: 'sans-serif', height: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+        <div style={{ backgroundColor: '#0f172a', color: 'white', padding: '2rem', textAlign: 'center', fontFamily: 'sans-serif', height: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
           <h2>Algo deu errado 😕</h2>
           <p style={{ color: '#ff6b6b', maxWidth: '300px', margin: '1rem auto' }}>
             {this.state.error && this.state.error.toString()}
