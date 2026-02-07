@@ -38,16 +38,26 @@ function App() {
   }, []);
 
   // Google Login Callback
-  const handleCredentialResponse = (response) => {
+  const handleCredentialResponse = async (response) => {
     const payload = JSON.parse(atob(response.credential.split('.')[1]));
     const newUser = {
       name: payload.name,
       email: payload.email,
       picture: payload.picture,
-      token: response.credential
     };
     setUser(newUser);
     localStorage.setItem('leca_user', JSON.stringify(newUser));
+
+    // Track login in Cloudflare D1
+    try {
+      await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8787/api'}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newUser)
+      });
+    } catch (err) {
+      console.error('[Cloud Login Track Failed]', err);
+    }
   };
 
   // Google Script Initialization with Retry
@@ -294,6 +304,16 @@ function App() {
           >
             <ShieldCheck size={18} />
           </div>
+          <a
+            href={`${import.meta.env.VITE_API_URL}/debug`}
+            target="_blank"
+            rel="noreferrer"
+            className="btn-icon"
+            title="Debug Database"
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Database size={20} />
+          </a>
           <button className="btn-icon" onClick={logout} title="Sair">
             <LogOut size={22} />
           </button>
