@@ -149,6 +149,24 @@ function App() {
     initGoogle();
   }, [user]);
 
+  // Self-Healing: Ensure user exists in Cloud DB (for users who logged in before the DB update)
+  useEffect(() => {
+    if (user && user.email) {
+      const ensureCloudRegistration = async () => {
+        try {
+          await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8787/api'}/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(user)
+          });
+        } catch (e) {
+          console.error('Cloud registration retry failed', e);
+        }
+      };
+      ensureCloudRegistration();
+    }
+  }, [user]);
+
   // Sync Logic: Periodic Pull and Initial Load
   useEffect(() => {
     const sync = async () => {
