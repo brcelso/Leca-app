@@ -9,4 +9,12 @@ CREATE TABLE IF NOT EXISTS tasks (
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS users (
+  email TEXT PRIMARY KEY,
+  name TEXT,
+  picture TEXT,
+  last_login TEXT DEFAULT CURRENT_TIMESTAMP,
+  created_at DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE INDEX IF NOT EXISTS idx_user_email ON tasks(user_email);
