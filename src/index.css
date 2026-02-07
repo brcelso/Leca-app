@@ -268,6 +268,18 @@ td {
   margin-bottom: 1.5rem;
 }
 
+.alert-banner {
+  background: var(--danger);
+  color: white;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  animation: slideDown 0.4s ease-out;
+}
+
 .sync-status {
   width: 44px;
   height: 44px;
@@ -278,6 +290,7 @@ td {
   background: rgba(255, 255, 255, 0.05);
   color: var(--text-muted);
   border: 1px solid var(--border);
+  transition: all 0.3s ease;
 }
 
 .sync-status.active {
@@ -286,8 +299,29 @@ td {
   border-color: rgba(16, 185, 129, 0.2);
 }
 
+.sync-status.error {
+  color: var(--danger);
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
 .sync-status.syncing {
-  box-shadow: 0 0 10px var(--success);
+  box-shadow: 0 0 12px var(--success);
+}
+
+.info-box.danger {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-100%);
+  }
+
+  to {
+    transform: translateY(0);
+  }
 }
 
 @keyframes spin {
@@ -301,7 +335,7 @@ td {
 }
 
 .spin {
-  animation: spin 2s linear infinite;
+  animation: spin 1s linear infinite;
 }
 
 .success-text {
