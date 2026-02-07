@@ -7,6 +7,7 @@ import { ptBR } from 'date-fns/locale';
 import { db, migrateData, syncTaskToCloud, syncAllToCloud, fetchAllTasks, generateUUID } from './db';
 
 const DAYS_OF_WEEK = [0, 1, 2, 3, 4, 5, 6];
+const WEEK_DAYS_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
 function App() {
   // DB Queries
@@ -494,7 +495,7 @@ function App() {
               <thead>
                 <tr>
                   <th style={{ textAlign: 'left', paddingLeft: '2rem' }}>Hábito</th>
-                  {DAYS_OF_WEEK.map(d => <th key={d}>{format(addDays(currentWeekStart, d), 'EEE dd/MM', { locale: ptBR }).replace('.', '')}</th>)}
+                  {DAYS_OF_WEEK.map(d => <th key={d}>{WEEK_DAYS_SHORT[d]} {format(addDays(currentWeekStart, d), 'dd/MM')}</th>)}
                   <th style={{ paddingRight: '2rem' }}>%</th>
                 </tr>
               </thead>
@@ -537,7 +538,7 @@ function App() {
                     const isDone = (task.completions || []).includes(format(dayDate, 'yyyy-MM-dd'));
                     return (
                       <div key={d} style={{ textAlign: 'center' }}>
-                        <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginBottom: '0.4rem' }}>{format(dayDate, 'EEE dd/MM', { locale: ptBR }).replace('.', '')}</div>
+                        <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginBottom: '0.4rem' }}>{WEEK_DAYS_SHORT[d]} {format(dayDate, 'dd/MM')}</div>
                         <div className={`checkbox-day ${isDone ? 'checked' : ''}`} style={{ width: '100%', height: '36px' }} onClick={() => toggleDay(task, dayDate)}>{isDone && <Check size={18} color="white" />}</div>
                       </div>
                     );
