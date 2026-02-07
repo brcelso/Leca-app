@@ -231,10 +231,10 @@ function App() {
       await db.tasks.delete(id);
       if (user && task) {
         // Soft delete or real delete via API
-        fetch(`http://localhost:8787/api/tasks/${task.uuid}`, {
+        fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8787/api'}/tasks/${task.uuid}`, {
           method: 'DELETE',
-          headers: { 'X-User-Email': user.email, 'Authorization': 'Bearer dev-token' }
-        });
+          headers: { 'X-User-Email': user.email, 'Authorization': 'Bearer local-dev-token' }
+        }).catch(err => console.error('[Sync Delete Error]', err));
       }
     }
   };
