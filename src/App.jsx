@@ -22,6 +22,7 @@ function App() {
   const [showHistory, setShowHistory] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [viewMode, setViewMode] = useState(window.innerWidth < 768 ? 'cards' : 'table');
+  const [debugOverlay, setDebugOverlay] = useState(null);
 
   const today = new Date();
   const currentWeekStart = startOfWeek(today, { weekStartsOn: 0 });
@@ -50,11 +51,22 @@ function App() {
 
     // Track login in Cloudflare D1
     try {
-      await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8787/api'}/login`, {
+      const loginRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8787/api'}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newUser)
       });
+
+      if (loginRes.ok) {
+        // Immediate Debug Check to prove it's in the DB
+        const debugRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8787/api'}/debug`);
+        if (debugRes.ok) {
+          const data = await debugRes.json();
+          setDebugOverlay(data);
+          // Auto-hide after 5 seconds
+          setTimeout(() => setDebugOverlay(null), 8000);
+        }
+      }
     } catch (err) {
       console.error('[Cloud Login Track Failed]', err);
     }
@@ -430,6 +442,22 @@ function App() {
           </div>
         )}
       </div>
+
+      {debugOverlay && (
+        <div className="modal-overlay" style={{ zIndex: 9999, background: 'rgba(0,0,0,0.8)' }}>
+          <div className="glass-card fade-in" style={{ maxWidth: '400px', padding: '2rem', textAlign: 'left', border: '1px solid var(--success)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--success)', marginBottom: '1rem' }}>
+              <ShieldCheck size={24} />
+              <h3 style={{ margin: 0 }}>Login Verificado na Nuvem!</h3>
+            </div>
+            <p style={{ fontSize: '0.8rem', opacity: 0.8, marginBottom: '1rem' }}>Validando persistência real no Cloudflare D1...</p>
+            <pre style={{ background: 'rgba(0,0,0,0.3)', padding: '1rem', borderRadius: '8px', fontSize: '0.7rem', overflow: 'auto', maxHeight: '200px', color: '#a0aec0' }}>
+              {JSON.stringify(debugOverlay, null, 2)}
+            </pre>
+            <button className="btn-primary" style={{ marginTop: '1.5rem', width: '100%' }} onClick={() => setDebugOverlay(null)}>Entendido</button>
+          </div>
+        </div>
+      )}
 
       {showModal && (
         <div className="modal-overlay">
