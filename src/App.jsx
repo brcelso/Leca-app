@@ -49,20 +49,28 @@ function App() {
     localStorage.setItem('leca_user', JSON.stringify(newUser));
   };
 
-  // Google Script Initialization
+  // Google Script Initialization with Retry
   useEffect(() => {
-    if (window.google) {
-      window.google.accounts.id.initialize({
-        client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID || "YOUR_GOOGLE_CLIENT_ID",
-        callback: handleCredentialResponse,
-      });
-      if (!user) {
-        window.google.accounts.id.renderButton(
-          document.getElementById("googleBtn"),
-          { theme: "outline", size: "large", width: "100%" }
-        );
+    let retryCount = 0;
+    const initGoogle = () => {
+      if (window.google) {
+        window.google.accounts.id.initialize({
+          client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID || "YOUR_GOOGLE_CLIENT_ID",
+          callback: handleCredentialResponse,
+        });
+        if (!user) {
+          const btnElem = document.getElementById("googleBtn");
+          if (btnElem) {
+            window.google.accounts.id.renderButton(btnElem, { theme: "outline", size: "large", width: "100%" });
+          }
+        }
+      } else if (retryCount < 10) {
+        retryCount++;
+        setTimeout(initGoogle, 500); // Retry every 500ms
       }
-    }
+    };
+
+    initGoogle();
   }, [user]);
 
   // Initial Sync Logic
