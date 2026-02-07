@@ -73,41 +73,68 @@ function App() {
     initGoogle();
   }, [user]);
 
-  // Initial Sync Logic
+  // Sync Logic: Periodic Pull and Initial Load
   useEffect(() => {
-    const init = async () => {
-      await migrateData();
+    const sync = async () => {
+      if (!user) return;
 
-      if (user) {
-        setIsSyncing(true);
-        // Pull remote tasks
+      setIsSyncing(true);
+      try {
+        // 1. Pull remote tasks
         const remoteTasks = await fetchAllTasks(user.email);
         for (const r of remoteTasks) {
           const local = await db.tasks.where('uuid').equals(r.uuid).first();
+          const completions = typeof r.completions === 'string' ? JSON.parse(r.completions) : (r.completions || []);
+
           if (!local) {
             await db.tasks.add({
-              ...r,
-              completions: JSON.parse(r.completions || '[]'),
+              uuid: r.uuid,
+              name: r.name,
+              targetFreq: r.target_freq,
+              completions: completions,
+              createdAt: r.created_at,
               updatedAt: r.updated_at
             });
           } else {
-            const remoteTS = new Date(r.updated_at).getTime();
+            const remoteTS = new Date(r.updated_at || r.created_at).getTime();
             const localTS = new Date(local.updatedAt || local.createdAt).getTime();
-            if (remoteTS > localTS) {
+
+            // Merge completions sets
+            const localCompletions = local.completions || [];
+            const combined = Array.from(new Set([...localCompletions, ...completions]));
+
+            if (remoteTS > localTS || combined.length > localCompletions.length) {
               await db.tasks.update(local.id, {
                 name: r.name,
                 targetFreq: r.target_freq,
-                completions: JSON.parse(r.completions || '[]'),
+                completions: combined,
                 updatedAt: r.updated_at
               });
             }
           }
         }
-        // Push local tasks
+        // 2. Push local changes
         await syncAllToCloud(user.email);
-        setIsSyncing(false);
+      } catch (err) {
+        console.error('[Sync Error]', err);
+      } finally {
+        setTimeout(() => setIsSyncing(false), 800);
       }
+    };
 
+    const init = async () => {
+      await migrateData();
+      await sync();
+    };
+
+    init();
+    const interval = setInterval(sync, 10000); // Sync every 10s
+    return () => clearInterval(interval);
+  }, [user]);
+
+  // Weekly score management
+  useEffect(() => {
+    const handleWeekTransition = async () => {
       const lastWeekStart = localStorage.getItem('leca_last_week_start_v6');
       if (lastWeekStart && lastWeekStart !== currentWeekStartStr) {
         const allTasks = await db.tasks.toArray();
@@ -123,8 +150,8 @@ function App() {
       }
       localStorage.setItem('leca_last_week_start_v6', currentWeekStartStr);
     };
-    init();
-  }, [user, currentWeekStartStr]);
+    handleWeekTransition();
+  }, [currentWeekStartStr, user]);
 
   const logout = () => {
     setUser(null);
