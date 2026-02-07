@@ -494,7 +494,7 @@ function App() {
               <thead>
                 <tr>
                   <th style={{ textAlign: 'left', paddingLeft: '2rem' }}>Hábito</th>
-                  {DAYS_OF_WEEK.map(d => <th key={d}>{format(addDays(currentWeekStart, d), 'EEE dd/MM', { locale: ptBR })}</th>)}
+                  {DAYS_OF_WEEK.map(d => <th key={d}>{format(addDays(currentWeekStart, d), 'EEE', { locale: ptBR }).replace('.', '')}</th>)}
                   <th style={{ paddingRight: '2rem' }}>%</th>
                 </tr>
               </thead>
@@ -537,7 +537,7 @@ function App() {
                     const isDone = (task.completions || []).includes(format(dayDate, 'yyyy-MM-dd'));
                     return (
                       <div key={d} style={{ textAlign: 'center' }}>
-                        <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginBottom: '0.4rem' }}>{format(dayDate, 'EEE dd/MM', { locale: ptBR })}</div>
+                        <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginBottom: '0.4rem' }}>{format(dayDate, 'EEE', { locale: ptBR }).replace('.', '')}</div>
                         <div className={`checkbox-day ${isDone ? 'checked' : ''}`} style={{ width: '100%', height: '36px' }} onClick={() => toggleDay(task, dayDate)}>{isDone && <Check size={18} color="white" />}</div>
                       </div>
                     );
