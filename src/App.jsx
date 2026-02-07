@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Plus, Check, Trash2, Edit2, Calendar, Target, TrendingUp, History, X, Save, RefreshCw, Settings, CloudSync } from 'lucide-react';
+import { Plus, Check, Trash2, Edit2, Calendar, Target, TrendingUp, History, X, Save, RefreshCw, Settings, ShieldCheck, AlertCircle } from 'lucide-react';
 import { format, startOfWeek, addDays, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { db, migrateFromLocalStorage, gun, getSyncNode, syncTaskToGun, syncAllToGun } from './db';
@@ -20,6 +20,7 @@ function App() {
   const [showHistory, setShowHistory] = useState(false);
   const [syncPhrase, setSyncPhrase] = useState(localStorage.getItem('leca_sync_phrase') || '');
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState('idle'); // idle, active, error
 
   const today = new Date();
   const currentWeekStart = startOfWeek(today, { weekStartsOn: 0 });
@@ -38,7 +39,7 @@ function App() {
           await db.history.add({ weekStart: lastWeekStart, score });
           for (const task of allTasks) {
             await db.tasks.update(task.id, { completions: [] });
-            if (syncPhrase) syncTaskToGun({ ...task, completions: [] }, syncPhrase);
+            if (syncPhrase && syncPhrase.length >= 4) syncTaskToGun({ ...task, completions: [] }, syncPhrase);
           }
         }
       }
@@ -49,21 +50,29 @@ function App() {
 
   // Gun.js Subscription
   useEffect(() => {
-    if (!syncPhrase || syncPhrase.trim().length < 4) return;
+    if (!syncPhrase || syncPhrase.trim().length < 4) {
+      setSyncStatus('idle');
+      return;
+    }
 
     const node = getSyncNode(syncPhrase);
     if (!node) return;
 
-    console.log('Connecting to sync node for:', syncPhrase);
+    setSyncStatus('active');
+    console.log('Gun.js: Listening on phrase:', syncPhrase);
 
-    const sub = node.get('tasks').map().on(async (data, name) => {
-      if (!data) return;
+    const tasksNode = node.get('tasks');
+
+    // Subscribe to changes in tasks
+    const sub = tasksNode.map().on(async (data, name) => {
+      if (!data) return; // Task deleted
+
       setIsSyncing(true);
-
       const localTask = await db.tasks.where('name').equals(name).first();
       const remoteCompletions = JSON.parse(data.completions || '[]');
 
       if (!localTask) {
+        console.log('Gun.js: Adding missing task from cloud:', name);
         await db.tasks.add({
           name: data.name,
           targetFreq: data.targetFreq,
@@ -71,39 +80,44 @@ function App() {
           createdAt: data.createdAt
         });
       } else {
-        // MERGE LOGIC: Combine unique completions from both sides
+        // MERGE: Set logic for completions
         const localCompletions = localTask.completions || [];
         const combined = Array.from(new Set([...localCompletions, ...remoteCompletions]));
 
+        // Update local if remote has more info or different frequency
         if (combined.length > localCompletions.length || data.targetFreq !== localTask.targetFreq) {
+          console.log('Gun.js: Updating task with data from cloud:', name);
           await db.tasks.update(localTask.id, {
             targetFreq: data.targetFreq,
             completions: combined
           });
 
-          // If we added local data to the combined set, we should push it back to Gun
+          // If we also added local info to the mix, push it back to the cloud
           if (combined.length > remoteCompletions.length) {
             syncTaskToGun({ ...localTask, completions: combined, targetFreq: data.targetFreq }, syncPhrase);
           }
         }
       }
 
-      setTimeout(() => setIsSyncing(false), 1000);
+      setTimeout(() => setIsSyncing(false), 500);
     });
 
     return () => {
-      node.get('tasks').off();
+      tasksNode.off();
     };
   }, [syncPhrase]);
 
   const saveSyncPhrase = (phrase) => {
-    const trimmed = phrase.trim();
+    const trimmed = phrase.trim().toLowerCase();
     if (trimmed === syncPhrase) return;
 
     setSyncPhrase(trimmed);
     localStorage.setItem('leca_sync_phrase', trimmed);
     if (trimmed.length >= 4) {
+      setSyncStatus('active');
       syncAllToGun(trimmed);
+    } else {
+      setSyncStatus('idle');
     }
   };
 
@@ -112,6 +126,8 @@ function App() {
       setIsSyncing(true);
       syncAllToGun(syncPhrase);
       setTimeout(() => setIsSyncing(false), 2000);
+    } else {
+      setShowSettings(true);
     }
   };
 
@@ -208,48 +224,66 @@ function App() {
           <h1 className="fade-in">Acompanhamento Pessoal</h1>
           <p style={{ color: 'var(--text-muted)' }}>Mantenha sua frequência e alcance seus objetivos</p>
         </div>
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
           <div
-            className={`sync-status ${syncPhrase && syncPhrase.length >= 4 ? 'active' : ''} ${isSyncing ? 'syncing' : ''}`}
+            className={`sync-status ${syncStatus} ${isSyncing ? 'syncing' : ''}`}
             onClick={manualSync}
             style={{ cursor: 'pointer' }}
-            title={syncPhrase ? (isSyncing ? 'Sincronizando...' : `ID: ${syncPhrase} - Clique para forçar sync`) : 'Sincronização desativada'}
+            title={syncPhrase ? (isSyncing ? 'Sincronizando...' : `Conectado: ${syncPhrase}\nClique para forçar sync`) : 'Sincronização desativada'}
           >
-            <RefreshCw size={16} className={isSyncing ? 'spin' : ''} />
+            <RefreshCw size={18} className={isSyncing ? 'spin' : ''} />
           </div>
-          <button className="btn-primary fade-in" style={{ background: 'rgba(255,255,255,0.1)' }} onClick={() => setShowSettings(true)}>
-            <Settings size={20} />
+          <button className="btn-icon" onClick={() => setShowSettings(true)} title="Configurações de Sincronização">
+            <Settings size={22} />
           </button>
-          <button className="btn-primary fade-in" style={{ background: 'rgba(255,255,255,0.1)' }} onClick={() => setShowHistory(!showHistory)}>
-            <History size={20} /> {showHistory ? 'Ocultar Histórico' : 'Ver Histórico'}
+          <button className="btn-icon" onClick={() => setShowHistory(!showHistory)} title={showHistory ? 'Ocultar Histórico' : 'Ver Histórico'}>
+            <History size={22} />
           </button>
           <button className="btn-primary fade-in" onClick={() => openModal()}>
-            <Plus size={20} /> Nova Tarefa
+            <Plus size={20} /> <span className="hide-mobile">Nova Tarefa</span>
           </button>
         </div>
       </header>
 
       {showSettings && (
         <div className="modal-overlay">
-          <div className="glass-card modal-content fade-in">
+          <div className="glass-card modal-content fade-in" style={{ maxWidth: '400px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <h2>Sincronização Cloud</h2>
-              <button onClick={() => setShowSettings(false)} style={{ background: 'transparent', color: 'var(--text-muted)' }}><X size={24} /></button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <CloudSync size={24} color="var(--primary)" />
+                <h2 style={{ margin: 0 }}>Sincronização</h2>
+              </div>
+              <button onClick={() => setShowSettings(false)} className="btn-icon-small"><X size={20} /></button>
             </div>
-            <p style={{ marginBottom: '1rem', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-              Insira uma **Frase de Sincronização** (mínimo 4 caracteres) para compartilhar seus dados entre dispositivos.
-            </p>
+
+            <div className="info-box">
+              <ShieldCheck size={20} style={{ color: 'var(--success)', flexShrink: 0 }} />
+              <p style={{ fontSize: '0.85rem' }}>
+                Seus dados são compartilhados apenas com quem possuir sua frase. Use algo único e pessoal.
+              </p>
+            </div>
+
+            <label style={{ marginTop: '1rem' }}>Sua Frase de Sincronização</label>
             <input
               type="text"
-              placeholder="Ex: minha-frase-secreta-123"
+              placeholder="Ex: meu-diario-habit-2026"
               defaultValue={syncPhrase}
               onBlur={(e) => saveSyncPhrase(e.target.value)}
-              style={{ width: '100%', marginBottom: '1rem' }}
+              className="sync-input"
             />
-            {syncPhrase && syncPhrase.length < 4 && (
-              <p style={{ color: 'var(--danger)', fontSize: '0.8rem', marginBottom: '1rem' }}>Mínimo de 4 caracteres.</p>
+            {syncPhrase && syncPhrase.length < 4 ? (
+              <div className="error-text">
+                <AlertCircle size={14} /> Mínimo de 4 caracteres para ativar.
+              </div>
+            ) : syncPhrase && (
+              <div className="success-text">
+                <ShieldCheck size={14} /> Sincronização Ativa para: <strong>{syncPhrase}</strong>
+              </div>
             )}
-            <button className="btn-primary" style={{ width: '100%' }} onClick={() => setShowSettings(false)}>Fechar</button>
+
+            <button className="btn-primary" style={{ width: '100%', marginTop: '1rem', justifyContent: 'center' }} onClick={() => setShowSettings(false)}>
+              Salvar e Fechar
+            </button>
           </div>
         </div>
       )}
@@ -333,8 +367,8 @@ function App() {
                           <span className="task-frequency">Meta: {task.targetFreq}x / semana</span>
                         </div>
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <button onClick={() => openModal(task)} style={{ background: 'transparent', color: 'var(--text-muted)', opacity: 0.6 }}><Edit2 size={16} /></button>
-                          <button onClick={() => deleteTask(task.id)} style={{ background: 'transparent', color: 'var(--danger)', opacity: 0.6 }}><Trash2 size={16} /></button>
+                          <button onClick={() => openModal(task)} style={{ background: 'transparent', color: 'var(--text-muted)', opacity: 0.6 }} className="btn-icon-tiny"><Edit2 size={16} /></button>
+                          <button onClick={() => deleteTask(task.id)} style={{ background: 'transparent', color: 'var(--danger)', opacity: 0.6 }} className="btn-icon-tiny"><Trash2 size={16} /></button>
                         </div>
                       </div>
                     </td>
@@ -365,7 +399,7 @@ function App() {
           <div className="glass-card modal-content fade-in">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
               <h2>{editingTask ? 'Editar Tarefa' : 'Nova Atividade'}</h2>
-              <button onClick={closeModal} style={{ background: 'transparent', color: 'var(--text-muted)' }}><X size={24} /></button>
+              <button onClick={closeModal} className="btn-icon-small"><X size={24} /></button>
             </div>
             <form onSubmit={handleSubmit}>
               <label>Nome da Tarefa</label>
@@ -376,7 +410,7 @@ function App() {
               </select>
               <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
                 <button type="button" className="btn-primary" style={{ background: 'transparent', border: '1px solid var(--border)' }} onClick={closeModal}>Cancelar</button>
-                <button type="submit" className="btn-primary" style={{ flex: 1 }}>{editingTask ? 'Salvar' : 'Criar'}</button>
+                <button type="submit" className="btn-primary" style={{ flex: 1, justifyContent: 'center' }}>{editingTask ? 'Salvar' : 'Criar'}</button>
               </div>
             </form>
           </div>
