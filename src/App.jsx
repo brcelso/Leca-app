@@ -1,7 +1,7 @@
 // Leca Enterprise - High Performance Habit Tracker | v1.0.1 (Build Trigger)
 import React, { useState, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Plus, Check, Trash2, Edit2, Calendar, Target, TrendingUp, History, X, Save, RefreshCw, Settings, ShieldCheck, AlertCircle, LayoutGrid, List, Info, Database, Cloud, CloudOff, LogOut, User } from 'lucide-react';
+import { Plus, Check, Trash2, Edit2, Calendar, Target, TrendingUp, History, X, Save, RefreshCw, Settings, ShieldCheck, AlertCircle, LayoutGrid, List, Info, Database, Cloud, CloudOff, LogOut, User, Activity, CheckCircle2, XCircle } from 'lucide-react';
 import { format, startOfWeek, addDays, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { db, migrateData, syncTaskToCloud, syncAllToCloud, fetchAllTasks, generateUUID } from './db';
@@ -23,6 +23,45 @@ function App() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [viewMode, setViewMode] = useState(window.innerWidth < 768 ? 'cards' : 'table');
   const [debugOverlay, setDebugOverlay] = useState(null);
+  const [showTroubleshooter, setShowTroubleshooter] = useState(false);
+  const [diagnostics, setDiagnostics] = useState({
+    url: import.meta.env.VITE_API_URL,
+    health: 'pending',
+    db: 'pending',
+    userInCloud: 'pending',
+    count: 0
+  });
+
+  const runDiagnostics = async (currentEmail) => {
+    const apiBase = (import.meta.env.VITE_API_URL || 'http://localhost:8787/api').replace('/api', '');
+    const emailToSearch = currentEmail || user?.email;
+
+    setDiagnostics(prev => ({ ...prev, health: 'loading', db: 'loading', userInCloud: 'loading' }));
+
+    try {
+      // 1. Health Check
+      const hRes = await fetch(apiBase);
+      const isHealthOk = hRes.ok;
+      setDiagnostics(prev => ({ ...prev, health: isHealthOk ? 'ok' : 'fail' }));
+
+      // 2. DB Debug Check
+      const dRes = await fetch(`${apiBase}/api/debug`);
+      if (dRes.ok) {
+        const data = await dRes.json();
+        const isInCloud = data.recent_logins?.some(u => u.email === emailToSearch);
+        setDiagnostics(prev => ({
+          ...prev,
+          db: 'ok',
+          count: data.stats?.tasks || 0,
+          userInCloud: isInCloud ? 'ok' : 'fail'
+        }));
+      } else {
+        setDiagnostics(prev => ({ ...prev, db: 'fail', userInCloud: 'fail' }));
+      }
+    } catch (e) {
+      setDiagnostics(prev => ({ ...prev, health: 'fail', db: 'fail', userInCloud: 'fail' }));
+    }
+  };
 
   useEffect(() => {
     console.log('[Leca Diagnostics] API URL:', import.meta.env.VITE_API_URL);
@@ -62,14 +101,9 @@ function App() {
       });
 
       if (loginRes.ok) {
-        // Immediate Debug Check to prove it's in the DB
-        const debugRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8787/api'}/debug`);
-        if (debugRes.ok) {
-          const data = await debugRes.json();
-          setDebugOverlay(data);
-          // Auto-hide after 5 seconds
-          setTimeout(() => setDebugOverlay(null), 8000);
-        }
+        // Run Proactive Diagnostics
+        setShowTroubleshooter(true);
+        runDiagnostics(newUser.email);
       }
     } catch (err) {
       console.error('[Cloud Login Track Failed]', err);
@@ -293,7 +327,12 @@ function App() {
           <h2>Hábitos em Alta Performance</h2>
           <p>Sincronização Cloudflare + Google Auth</p>
           <div id="googleBtn" style={{ marginTop: '2rem' }}></div>
-          <button className="btn-secondary" onClick={() => setUser({ name: 'Dev User', email: 'dev@leca.app', picture: '' })} style={{ marginTop: '1rem', opacity: 0.5, fontSize: '0.7rem' }}>Entrar modo Dev (Sem Google)</button>
+          <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <button className="btn-secondary" onClick={() => { setShowTroubleshooter(true); runDiagnostics(); }} style={{ fontSize: '0.8rem', padding: '0.5rem' }}>
+              <Activity size={14} style={{ marginRight: '0.5rem' }} /> Testar Conexão Cloud
+            </button>
+            <button className="btn-secondary" onClick={() => setUser({ name: 'Dev User', email: 'dev@leca.app', picture: '' })} style={{ opacity: 0.5, fontSize: '0.7rem' }}>Entrar modo Dev (Sem Google)</button>
+          </div>
         </div>
       </div>
     );
@@ -317,15 +356,14 @@ function App() {
             onClick={async () => {
               setIsSyncing(true);
               try {
-                const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8787/api'}/debug`);
-                if (res.ok) setDebugOverlay(await res.json());
-                else console.error('[Manual Debug Failed]', await res.text());
+                await runDiagnostics();
+                setShowTroubleshooter(true);
                 await syncAllToCloud(user.email);
               } catch (e) { console.error(e); }
               setIsSyncing(false);
             }}
             style={{ cursor: 'pointer' }}
-            title="Forçar Sincronização e Debug"
+            title="Centro de Conexão Cloud"
           >
             <ShieldCheck size={18} />
           </div>
@@ -455,6 +493,64 @@ function App() {
           </div>
         )}
       </div>
+
+      {showTroubleshooter && (
+        <div className="modal-overlay" style={{ zIndex: 10000 }}>
+          <div className="glass-card fade-in" style={{ maxWidth: '450px', padding: '2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Activity className="text-primary" size={24} />
+                <h2 style={{ margin: 0 }}>Cloud Connection Center</h2>
+              </div>
+              <button onClick={() => setShowTroubleshooter(false)} className="btn-icon-tiny"><X size={24} /></button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div className="troubleshoot-item">
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Endereço do Servidor</span>
+                  <code style={{ fontSize: '0.7rem', opacity: 0.6 }}>{diagnostics.url?.replace('https://', '')}</code>
+                </div>
+              </div>
+
+              <div className="troubleshoot-check">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                  {diagnostics.health === 'loading' ? <RefreshCw className="spin" size={18} /> :
+                    diagnostics.health === 'ok' ? <CheckCircle2 size={18} color="var(--success)" /> : <XCircle size={18} color="var(--danger)" />}
+                  <span>Status do Servidor (Health)</span>
+                </div>
+              </div>
+
+              <div className="troubleshoot-check">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                  {diagnostics.db === 'loading' ? <RefreshCw className="spin" size={18} /> :
+                    diagnostics.db === 'ok' ? <CheckCircle2 size={18} color="var(--success)" /> : <XCircle size={18} color="var(--danger)" />}
+                  <span>Conexão com Banco de Dados (D1)</span>
+                </div>
+              </div>
+
+              <div className="troubleshoot-check">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                  {diagnostics.userInCloud === 'loading' ? <RefreshCw className="spin" size={18} /> :
+                    diagnostics.userInCloud === 'ok' ? <CheckCircle2 size={18} color="var(--success)" /> : <XCircle size={18} color="var(--danger)" />}
+                  <span>Seu Login está salvo na Nuvem?</span>
+                </div>
+              </div>
+
+              <div style={{ background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px', marginTop: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                  <span>Total de Tarefas no Banco:</span>
+                  <span style={{ fontWeight: 'bold', color: 'var(--primary)' }}>{diagnostics.count}</span>
+                </div>
+              </div>
+
+              <button className="btn-primary" onClick={() => runDiagnostics()} style={{ marginTop: '1rem' }}>
+                <RefreshCw size={16} style={{ marginRight: '0.5rem' }} /> Re-testar Agora
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {debugOverlay && (
         <div className="modal-overlay" style={{ zIndex: 9999, background: 'rgba(0,0,0,0.8)' }}>
