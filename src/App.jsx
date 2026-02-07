@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Plus, Check, Trash2, Edit2, Calendar, Target, TrendingUp, History, X, Save } from 'lucide-react';
+import { Plus, Check, Trash2, Edit2, Calendar, Target, TrendingUp, History, X, Save, RefreshCw, Settings } from 'lucide-react';
 import { format, startOfWeek, addDays, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { db, migrateFromLocalStorage } from './db';
+import { db, migrateFromLocalStorage, gun, getSyncNode, syncTaskToGun, syncAllToGun } from './db';
 
 const DAYS_OF_WEEK = [0, 1, 2, 3, 4, 5, 6];
 
@@ -13,41 +13,77 @@ function App() {
   const history = useLiveQuery(() => db.history.orderBy('weekStart').reverse().toArray(), []) || [];
 
   const [showModal, setShowModal] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [taskName, setTaskName] = useState('');
   const [taskFreq, setTaskFreq] = useState(1);
   const [showHistory, setShowHistory] = useState(false);
+  const [syncPhrase, setSyncPhrase] = useState(localStorage.getItem('leca_sync_phrase') || '');
 
   const today = new Date();
   const currentWeekStart = startOfWeek(today, { weekStartsOn: 0 });
   const currentWeekStartStr = format(currentWeekStart, 'yyyy-MM-dd');
 
-  // Initial Migration & Rollover
+  // Initial Migration & Sync Listeners
   useEffect(() => {
     const init = async () => {
       await migrateFromLocalStorage();
 
       const lastWeekStart = localStorage.getItem('leca_last_week_start_final');
       if (lastWeekStart && lastWeekStart !== currentWeekStartStr) {
-        // Rollover logic for tasks in DB
         const allTasks = await db.tasks.toArray();
         if (allTasks.length > 0) {
           const score = calculateScore(allTasks, lastWeekStart);
-          await db.history.add({
-            weekStart: lastWeekStart,
-            score
-          });
-
-          // Reset completions for new week
+          await db.history.add({ weekStart: lastWeekStart, score });
           for (const task of allTasks) {
             await db.tasks.update(task.id, { completions: [] });
+            if (syncPhrase) syncTaskToGun({ ...task, completions: [] }, syncPhrase);
           }
         }
       }
       localStorage.setItem('leca_last_week_start_final', currentWeekStartStr);
     };
     init();
-  }, [currentWeekStartStr]);
+  }, [currentWeekStartStr, syncPhrase]);
+
+  // Gun.js Subscription
+  useEffect(() => {
+    if (!syncPhrase) return;
+
+    const node = getSyncNode(syncPhrase);
+    const sub = node.get('tasks').map().on(async (data, name) => {
+      if (!data) return;
+      const localTask = await db.tasks.where('name').equals(name).first();
+      const completions = JSON.parse(data.completions || '[]');
+
+      if (!localTask) {
+        await db.tasks.add({
+          name: data.name,
+          targetFreq: data.targetFreq,
+          completions: completions,
+          createdAt: data.createdAt
+        });
+      } else {
+        // Simple conflict resolution: more completions = better
+        if (completions.length > (localTask.completions?.length || 0)) {
+          await db.tasks.update(localTask.id, {
+            targetFreq: data.targetFreq,
+            completions: completions
+          });
+        }
+      }
+    });
+
+    return () => node.get('tasks').off();
+  }, [syncPhrase]);
+
+  const saveSyncPhrase = (phrase) => {
+    const trimmed = phrase.trim();
+    setSyncPhrase(trimmed);
+    localStorage.setItem('leca_sync_phrase', trimmed);
+    if (trimmed) syncAllToGun(trimmed);
+    setShowSettings(false);
+  };
 
   const calculateScore = (taskList, weekBaseStr) => {
     if (taskList.length === 0) return 0;
@@ -78,17 +114,18 @@ function App() {
     if (!taskName.trim()) return;
 
     if (editingTask) {
-      await db.tasks.update(editingTask.id, {
-        name: taskName,
-        targetFreq: parseInt(taskFreq)
-      });
+      const updated = { name: taskName, targetFreq: parseInt(taskFreq) };
+      await db.tasks.update(editingTask.id, updated);
+      if (syncPhrase) syncTaskToGun({ ...editingTask, ...updated }, syncPhrase);
     } else {
-      await db.tasks.add({
+      const newTask = {
         name: taskName,
         targetFreq: parseInt(taskFreq),
         completions: [],
         createdAt: new Date().toISOString()
-      });
+      };
+      const id = await db.tasks.add(newTask);
+      if (syncPhrase) syncTaskToGun({ ...newTask, id }, syncPhrase);
     }
     closeModal();
   };
@@ -101,11 +138,16 @@ function App() {
       : [...completions, dateStr];
 
     await db.tasks.update(task.id, { completions: newCompletions });
+    if (syncPhrase) syncTaskToGun({ ...task, completions: newCompletions }, syncPhrase);
   };
 
   const deleteTask = async (id) => {
     if (confirm('Tem certeza que deseja excluir esta tarefa?')) {
+      const task = await db.tasks.get(id);
       await db.tasks.delete(id);
+      if (syncPhrase && task) {
+        getSyncNode(syncPhrase).get('tasks').get(task.name).put(null);
+      }
     }
   };
 
@@ -136,7 +178,13 @@ function App() {
           <h1 className="fade-in">Acompanhamento Pessoal</h1>
           <p style={{ color: 'var(--text-muted)' }}>Mantenha sua frequência e alcance seus objetivos</p>
         </div>
-        <div style={{ display: 'flex', gap: '1rem' }}>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <div className={`sync-status ${syncPhrase ? 'active' : ''}`} title={syncPhrase ? `Sincronizando com ID: ${syncPhrase}` : 'Sincronização desativada'}>
+            <RefreshCw size={16} className={syncPhrase ? 'spin' : ''} />
+          </div>
+          <button className="btn-primary fade-in" style={{ background: 'rgba(255,255,255,0.1)' }} onClick={() => setShowSettings(true)}>
+            <Settings size={20} />
+          </button>
           <button className="btn-primary fade-in" style={{ background: 'rgba(255,255,255,0.1)' }} onClick={() => setShowHistory(!showHistory)}>
             <History size={20} /> {showHistory ? 'Ocultar Histórico' : 'Ver Histórico'}
           </button>
@@ -145,6 +193,29 @@ function App() {
           </button>
         </div>
       </header>
+
+      {showSettings && (
+        <div className="modal-overlay">
+          <div className="glass-card modal-content fade-in">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h2>Configurações de Sincronização</h2>
+              <button onClick={() => setShowSettings(false)} style={{ background: 'transparent', color: 'var(--text-muted)' }}><X size={24} /></button>
+            </div>
+            <p style={{ marginBottom: '1rem', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+              Insira uma **Frase de Sincronização** única para compartilhar seus dados entre dispositivos.
+              Quem tiver essa frase poderá ver e editar seus hábitos.
+            </p>
+            <input
+              type="text"
+              placeholder="Ex: minha-frase-secreta-123"
+              defaultValue={syncPhrase}
+              onBlur={(e) => saveSyncPhrase(e.target.value)}
+              style={{ width: '100%', marginBottom: '1rem' }}
+            />
+            <button className="btn-primary" style={{ width: '100%' }} onClick={() => setShowSettings(false)}>Fechar</button>
+          </div>
+        </div>
+      )}
 
       {showHistory && (
         <div className="glass-card fade-in" style={{ marginBottom: '2rem', padding: '1.5rem' }}>
