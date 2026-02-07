@@ -1,5 +1,6 @@
 import { AutoRouter, cors } from 'itty-router';
 
+// 1. CORS & Preflight Setup
 const { preflight, corsify } = cors({
   origin: '*',
   headers: {
@@ -9,11 +10,7 @@ const { preflight, corsify } = cors({
 
 const router = AutoRouter();
 
-router.all('*', (request) => {
-  console.log('[Request]', request.method, request.url);
-  console.log('Headers:', JSON.stringify(Object.fromEntries(request.headers.entries())));
-  return preflight(request);
-});
+// 2. Auth Middleware
 const withAuth = (request) => {
   const userEmail = request.headers.get('X-User-Email');
   if (!userEmail) {
@@ -22,10 +19,14 @@ const withAuth = (request) => {
   request.userEmail = userEmail;
 };
 
-// Common CORS handling
-router.all('*', preflight);
+// 3. Logger & Preflight Global
+router.all('*', (request) => {
+  console.log('[Request]', request.method, request.url);
+  return preflight(request);
+});
 
-// GET all tasks for a user
+// 4. API Routes
+// GET all tasks
 router.get('/api/tasks', withAuth, async (request, env) => {
   const { results } = await env.DB.prepare(
     'SELECT * FROM tasks WHERE user_email = ? ORDER BY created_at DESC'
@@ -33,6 +34,7 @@ router.get('/api/tasks', withAuth, async (request, env) => {
   return results;
 });
 
+// UPSERT a task
 router.post('/api/tasks', withAuth, async (request, env) => {
   try {
     const body = await request.json();
@@ -67,17 +69,24 @@ router.post('/api/tasks', withAuth, async (request, env) => {
   }
 });
 
-// DEBUB endpoint (Public for visibility during dev)
+// DEBUG endpoint (Public for visibility during dev)
 router.get('/api/debug', async (request, env) => {
-  const tasksCount = await env.DB.prepare('SELECT COUNT(*) as total FROM tasks').first('total');
-  const users = await env.DB.prepare('SELECT email, last_login FROM users ORDER BY last_login DESC LIMIT 5').all();
-  return Response.json({
-    status: 'online',
-    database: 'connected',
-    stats: { tasks: tasksCount },
-    recent_logins: users.results,
-    server_time: new Date().toISOString()
-  });
+  try {
+    const tasksCount = await env.DB.prepare('SELECT COUNT(*) as total FROM tasks').first('total');
+    const users = await env.DB.prepare('SELECT email, last_login FROM users ORDER BY last_login DESC LIMIT 5').all();
+    return new Response(JSON.stringify({
+      status: 'online',
+      database: 'connected',
+      stats: { tasks: tasksCount },
+      recent_logins: users.results,
+      server_time: new Date().toISOString()
+    }), { headers: { 'content-type': 'application/json' } });
+  } catch (err) {
+    return new Response(JSON.stringify({ status: 'error', error: err.message }), {
+      status: 500,
+      headers: { 'content-type': 'application/json' }
+    });
+  }
 });
 
 // LOGIN tracking endpoint
@@ -88,7 +97,7 @@ router.post('/api/login', async (request, env) => {
 
     await env.DB.prepare(`
       INSERT INTO users (email, name, picture, last_login)
-      VALUES (?, ?, ?, ?)
+      VALUES (?, ?, ?, CURRENT_TIMESTAMP)
       ON CONFLICT(email) DO UPDATE SET
         name = excluded.name,
         picture = excluded.picture,
@@ -110,6 +119,7 @@ router.delete('/api/tasks/:uuid', withAuth, async (request, env) => {
   return new Response('Deleted', { status: 200 });
 });
 
+// 5. Final Export
 export default {
   fetch: (request, env, ctx) => router.fetch(request, env, ctx).then(corsify)
 };
