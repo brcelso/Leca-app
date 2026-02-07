@@ -36,6 +36,9 @@ jobs:
         run: npm ci
       - name: Build
         run: npm run build
+        env:
+          VITE_API_URL: https://leca-server.brcelso.workers.dev/api
+          VITE_GOOGLE_CLIENT_ID: 92656285781-gecpuf5ug1b75pk8fr4h8dolp4es7a6e.apps.googleusercontent.com
       - name: Setup Pages
         uses: actions/configure-pages@v4
       - name: Upload artifact
