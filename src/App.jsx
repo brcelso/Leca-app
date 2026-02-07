@@ -137,7 +137,7 @@ function App() {
         if (!user) {
           const btnElem = document.getElementById("googleBtn");
           if (btnElem) {
-            window.google.accounts.id.renderButton(btnElem, { theme: "outline", size: "large", width: "100%" });
+            window.google.accounts.id.renderButton(btnElem, { theme: "outline", size: "large", shape: "pill", width: "100%" });
           }
         }
       } else if (retryCount < 10) {
@@ -358,14 +358,7 @@ function App() {
         <div className="glass-card login-card fade-in">
           <div className="login-logo">Leca</div>
           <h2>Hábitos em Alta Performance</h2>
-          <p>Sincronização Cloudflare + Google Auth</p>
           <div id="googleBtn" style={{ marginTop: '2rem' }}></div>
-          <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <button className="btn-secondary" onClick={() => { setShowTroubleshooter(true); runDiagnostics(); }} style={{ fontSize: '0.8rem', padding: '0.5rem' }}>
-              <Activity size={14} style={{ marginRight: '0.5rem' }} /> Testar Conexão Cloud
-            </button>
-            <button className="btn-secondary" onClick={() => setUser({ name: 'Dev User', email: 'dev@leca.app', picture: '' })} style={{ opacity: 0.5, fontSize: '0.7rem' }}>Entrar modo Dev (Sem Google)</button>
-          </div>
         </div>
 
         {/* Troubleshooter available on Login Screen */}
