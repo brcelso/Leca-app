@@ -1,8 +1,12 @@
 import Dexie from 'dexie';
 import Gun from 'gun';
 
-// Gun.js Init - using public relays
-export const gun = Gun(['https://gun-manhattan.herokuapp.com/gun']);
+// Gun.js Init - using multiple public relays for redundancy
+export const gun = Gun([
+    'https://gun-manhattan.herokuapp.com/gun',
+    'https://gun-us-west.herokuapp.com/gun',
+    'https://gun-eu-west.herokuapp.com/gun'
+]);
 
 export const db = new Dexie('LecaDB');
 
@@ -13,8 +17,8 @@ db.version(1).stores({
 
 // Helper to get the sync node based on a phrase
 export const getSyncNode = (phrase) => {
-    if (!phrase) return null;
-    return gun.get('leca_app_sync').get(phrase);
+    if (!phrase || phrase.trim().length < 4) return null;
+    return gun.get('leca_app_v1').get(phrase.trim());
 };
 
 // Sync local task to Gun

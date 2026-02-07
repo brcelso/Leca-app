@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Plus, Check, Trash2, Edit2, Calendar, Target, TrendingUp, History, X, Save, RefreshCw, Settings } from 'lucide-react';
+import { Plus, Check, Trash2, Edit2, Calendar, Target, TrendingUp, History, X, Save, RefreshCw, Settings, CloudSync } from 'lucide-react';
 import { format, startOfWeek, addDays, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { db, migrateFromLocalStorage, gun, getSyncNode, syncTaskToGun, syncAllToGun } from './db';
@@ -19,6 +19,7 @@ function App() {
   const [taskFreq, setTaskFreq] = useState(1);
   const [showHistory, setShowHistory] = useState(false);
   const [syncPhrase, setSyncPhrase] = useState(localStorage.getItem('leca_sync_phrase') || '');
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const today = new Date();
   const currentWeekStart = startOfWeek(today, { weekStartsOn: 0 });
@@ -48,41 +49,70 @@ function App() {
 
   // Gun.js Subscription
   useEffect(() => {
-    if (!syncPhrase) return;
+    if (!syncPhrase || syncPhrase.trim().length < 4) return;
 
     const node = getSyncNode(syncPhrase);
+    if (!node) return;
+
+    console.log('Connecting to sync node for:', syncPhrase);
+
     const sub = node.get('tasks').map().on(async (data, name) => {
       if (!data) return;
+      setIsSyncing(true);
+
       const localTask = await db.tasks.where('name').equals(name).first();
-      const completions = JSON.parse(data.completions || '[]');
+      const remoteCompletions = JSON.parse(data.completions || '[]');
 
       if (!localTask) {
         await db.tasks.add({
           name: data.name,
           targetFreq: data.targetFreq,
-          completions: completions,
+          completions: remoteCompletions,
           createdAt: data.createdAt
         });
       } else {
-        // Simple conflict resolution: more completions = better
-        if (completions.length > (localTask.completions?.length || 0)) {
+        // MERGE LOGIC: Combine unique completions from both sides
+        const localCompletions = localTask.completions || [];
+        const combined = Array.from(new Set([...localCompletions, ...remoteCompletions]));
+
+        if (combined.length > localCompletions.length || data.targetFreq !== localTask.targetFreq) {
           await db.tasks.update(localTask.id, {
             targetFreq: data.targetFreq,
-            completions: completions
+            completions: combined
           });
+
+          // If we added local data to the combined set, we should push it back to Gun
+          if (combined.length > remoteCompletions.length) {
+            syncTaskToGun({ ...localTask, completions: combined, targetFreq: data.targetFreq }, syncPhrase);
+          }
         }
       }
+
+      setTimeout(() => setIsSyncing(false), 1000);
     });
 
-    return () => node.get('tasks').off();
+    return () => {
+      node.get('tasks').off();
+    };
   }, [syncPhrase]);
 
   const saveSyncPhrase = (phrase) => {
     const trimmed = phrase.trim();
+    if (trimmed === syncPhrase) return;
+
     setSyncPhrase(trimmed);
     localStorage.setItem('leca_sync_phrase', trimmed);
-    if (trimmed) syncAllToGun(trimmed);
-    setShowSettings(false);
+    if (trimmed.length >= 4) {
+      syncAllToGun(trimmed);
+    }
+  };
+
+  const manualSync = () => {
+    if (syncPhrase && syncPhrase.length >= 4) {
+      setIsSyncing(true);
+      syncAllToGun(syncPhrase);
+      setTimeout(() => setIsSyncing(false), 2000);
+    }
   };
 
   const calculateScore = (taskList, weekBaseStr) => {
@@ -116,7 +146,7 @@ function App() {
     if (editingTask) {
       const updated = { name: taskName, targetFreq: parseInt(taskFreq) };
       await db.tasks.update(editingTask.id, updated);
-      if (syncPhrase) syncTaskToGun({ ...editingTask, ...updated }, syncPhrase);
+      if (syncPhrase && syncPhrase.length >= 4) syncTaskToGun({ ...editingTask, ...updated }, syncPhrase);
     } else {
       const newTask = {
         name: taskName,
@@ -125,7 +155,7 @@ function App() {
         createdAt: new Date().toISOString()
       };
       const id = await db.tasks.add(newTask);
-      if (syncPhrase) syncTaskToGun({ ...newTask, id }, syncPhrase);
+      if (syncPhrase && syncPhrase.length >= 4) syncTaskToGun({ ...newTask, id }, syncPhrase);
     }
     closeModal();
   };
@@ -138,14 +168,14 @@ function App() {
       : [...completions, dateStr];
 
     await db.tasks.update(task.id, { completions: newCompletions });
-    if (syncPhrase) syncTaskToGun({ ...task, completions: newCompletions }, syncPhrase);
+    if (syncPhrase && syncPhrase.length >= 4) syncTaskToGun({ ...task, completions: newCompletions }, syncPhrase);
   };
 
   const deleteTask = async (id) => {
     if (confirm('Tem certeza que deseja excluir esta tarefa?')) {
       const task = await db.tasks.get(id);
       await db.tasks.delete(id);
-      if (syncPhrase && task) {
+      if (syncPhrase && syncPhrase.length >= 4 && task) {
         getSyncNode(syncPhrase).get('tasks').get(task.name).put(null);
       }
     }
@@ -179,8 +209,13 @@ function App() {
           <p style={{ color: 'var(--text-muted)' }}>Mantenha sua frequência e alcance seus objetivos</p>
         </div>
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <div className={`sync-status ${syncPhrase ? 'active' : ''}`} title={syncPhrase ? `Sincronizando com ID: ${syncPhrase}` : 'Sincronização desativada'}>
-            <RefreshCw size={16} className={syncPhrase ? 'spin' : ''} />
+          <div
+            className={`sync-status ${syncPhrase && syncPhrase.length >= 4 ? 'active' : ''} ${isSyncing ? 'syncing' : ''}`}
+            onClick={manualSync}
+            style={{ cursor: 'pointer' }}
+            title={syncPhrase ? (isSyncing ? 'Sincronizando...' : `ID: ${syncPhrase} - Clique para forçar sync`) : 'Sincronização desativada'}
+          >
+            <RefreshCw size={16} className={isSyncing ? 'spin' : ''} />
           </div>
           <button className="btn-primary fade-in" style={{ background: 'rgba(255,255,255,0.1)' }} onClick={() => setShowSettings(true)}>
             <Settings size={20} />
@@ -198,12 +233,11 @@ function App() {
         <div className="modal-overlay">
           <div className="glass-card modal-content fade-in">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <h2>Configurações de Sincronização</h2>
+              <h2>Sincronização Cloud</h2>
               <button onClick={() => setShowSettings(false)} style={{ background: 'transparent', color: 'var(--text-muted)' }}><X size={24} /></button>
             </div>
             <p style={{ marginBottom: '1rem', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-              Insira uma **Frase de Sincronização** única para compartilhar seus dados entre dispositivos.
-              Quem tiver essa frase poderá ver e editar seus hábitos.
+              Insira uma **Frase de Sincronização** (mínimo 4 caracteres) para compartilhar seus dados entre dispositivos.
             </p>
             <input
               type="text"
@@ -212,6 +246,9 @@ function App() {
               onBlur={(e) => saveSyncPhrase(e.target.value)}
               style={{ width: '100%', marginBottom: '1rem' }}
             />
+            {syncPhrase && syncPhrase.length < 4 && (
+              <p style={{ color: 'var(--danger)', fontSize: '0.8rem', marginBottom: '1rem' }}>Mínimo de 4 caracteres.</p>
+            )}
             <button className="btn-primary" style={{ width: '100%' }} onClick={() => setShowSettings(false)}>Fechar</button>
           </div>
         </div>

@@ -311,9 +311,18 @@ input:focus {
   background: rgba(16, 185, 129, 0.1);
 }
 
+.sync-status.syncing {
+  box-shadow: 0 0 10px var(--success);
+}
+
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .spin {
