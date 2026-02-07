@@ -494,7 +494,7 @@ function App() {
               <thead>
                 <tr>
                   <th style={{ textAlign: 'left', paddingLeft: '2rem' }}>Hábito</th>
-                  {DAYS_OF_WEEK.map(d => <th key={d}>{format(addDays(currentWeekStart, d), 'EEE', { locale: ptBR })}</th>)}
+                  {DAYS_OF_WEEK.map(d => <th key={d}>{format(addDays(currentWeekStart, d), 'EEE dd/MM', { locale: ptBR })}</th>)}
                   <th style={{ paddingRight: '2rem' }}>%</th>
                 </tr>
               </thead>
@@ -537,7 +537,7 @@ function App() {
                     const isDone = (task.completions || []).includes(format(dayDate, 'yyyy-MM-dd'));
                     return (
                       <div key={d} style={{ textAlign: 'center' }}>
-                        <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginBottom: '0.4rem' }}>{format(dayDate, 'E', { locale: ptBR })}</div>
+                        <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginBottom: '0.4rem' }}>{format(dayDate, 'EEE dd/MM', { locale: ptBR })}</div>
                         <div className={`checkbox-day ${isDone ? 'checked' : ''}`} style={{ width: '100%', height: '36px' }} onClick={() => toggleDay(task, dayDate)}>{isDone && <Check size={18} color="white" />}</div>
                       </div>
                     );
@@ -638,9 +638,29 @@ function App() {
               <label>Nome do Hábito</label>
               <input type="text" value={taskName} onChange={(e) => setTaskName(e.target.value)} autoFocus />
               <label>Frequência Semanal</label>
-              <select value={taskFreq} onChange={(e) => setTaskFreq(e.target.value)}>
-                {[1, 2, 3, 4, 5, 6, 7].map(n => <option key={n} value={n}>{n}x por semana</option>)}
-              </select>
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+                {[1, 2, 3, 4, 5, 6, 7].map(n => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setTaskFreq(n)}
+                    style={{
+                      flex: 1,
+                      minWidth: '40px',
+                      padding: '0.8rem 0',
+                      borderRadius: '8px',
+                      background: taskFreq === n ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
+                      border: taskFreq === n ? '1px solid var(--primary)' : '1px solid var(--border)',
+                      color: taskFreq === n ? 'white' : 'var(--text-muted)',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    {n}x
+                  </button>
+                ))}
+              </div>
               <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
                 <button type="button" className="btn-primary" style={{ background: 'transparent', border: '1px solid var(--border)', flex: 1 }} onClick={closeModal}>Cancelar</button>
                 <button type="submit" className="btn-primary" style={{ flex: 2 }}>Salvar</button>

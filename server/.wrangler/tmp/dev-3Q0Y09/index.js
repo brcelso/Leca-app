@@ -56,175 +56,117 @@ var require_checked_fetch = __commonJS({
 });
 
 // .wrangler/tmp/bundle-dxTyrG/middleware-loader.entry.ts
-var import_checked_fetch7 = __toESM(require_checked_fetch());
+var import_checked_fetch6 = __toESM(require_checked_fetch());
 
 // wrangler-modules-watch:wrangler:modules-watch
 var import_checked_fetch = __toESM(require_checked_fetch());
 
 // .wrangler/tmp/bundle-dxTyrG/middleware-insertion-facade.js
-var import_checked_fetch5 = __toESM(require_checked_fetch());
+var import_checked_fetch4 = __toESM(require_checked_fetch());
 
 // src/index.js
-var import_checked_fetch3 = __toESM(require_checked_fetch());
-
-// node_modules/itty-router/index.mjs
-var import_checked_fetch2 = __toESM(require_checked_fetch(), 1);
-var t = /* @__PURE__ */ __name(({ base: e = "", routes: t2 = [], ...r2 } = {}) => ({ __proto__: new Proxy({}, { get: /* @__PURE__ */ __name((r3, o2, a, s) => (r4, ...c) => t2.push([o2.toUpperCase?.(), RegExp(`^${(s = (e + r4).replace(/\/+(\/|$)/g, "$1")).replace(/(\/?\.?):(\w+)\+/g, "($1(?<$2>*))").replace(/(\/?\.?):(\w+)/g, "($1(?<$2>[^$1/]+?))").replace(/\./g, "\\.").replace(/(\/?)\*/g, "($1.*)?")}/*$`), c, s]) && a, "get") }), routes: t2, ...r2, async fetch(e2, ...o2) {
-  let a, s, c = new URL(e2.url), n = e2.query = { __proto__: null };
-  for (let [e3, t3] of c.searchParams) n[e3] = n[e3] ? [].concat(n[e3], t3) : t3;
-  e: try {
-    for (let t3 of r2.before || []) if (null != (a = await t3(e2.proxy ?? e2, ...o2))) break e;
-    t: for (let [r3, n2, l, i] of t2) if ((r3 == e2.method || "ALL" == r3) && (s = c.pathname.match(n2))) {
-      e2.params = s.groups || {}, e2.route = i;
-      for (let t3 of l) if (null != (a = await t3(e2.proxy ?? e2, ...o2))) break t;
-    }
-  } catch (t3) {
-    if (!r2.catch) throw t3;
-    a = await r2.catch(t3, e2.proxy ?? e2, ...o2);
-  }
-  try {
-    for (let t3 of r2.finally || []) a = await t3(a, e2.proxy ?? e2, ...o2) ?? a;
-  } catch (t3) {
-    if (!r2.catch) throw t3;
-    a = await r2.catch(t3, e2.proxy ?? e2, ...o2);
-  }
-  return a;
-} }), "t");
-var r = /* @__PURE__ */ __name((e = "text/plain; charset=utf-8", t2) => (r2, o2 = {}) => {
-  if (void 0 === r2 || r2 instanceof Response) return r2;
-  const a = new Response(t2?.(r2) ?? r2, o2.url ? void 0 : o2);
-  return a.headers.set("content-type", e), a;
-}, "r");
-var o = r("application/json; charset=utf-8", JSON.stringify);
-var p = r("text/plain; charset=utf-8", String);
-var f = r("text/html");
-var u = r("image/jpeg");
-var h = r("image/png");
-var g = r("image/webp");
-var y = /* @__PURE__ */ __name((e = {}) => {
-  const { origin: t2 = "*", credentials: r2 = false, allowMethods: o2 = "*", allowHeaders: a, exposeHeaders: s, maxAge: c } = e, n = /* @__PURE__ */ __name((e2) => {
-    const o3 = e2?.headers.get("origin");
-    return true === t2 ? o3 : t2 instanceof RegExp ? t2.test(o3) ? o3 : void 0 : Array.isArray(t2) ? t2.includes(o3) ? o3 : void 0 : t2 instanceof Function ? t2(o3) : "*" == t2 && r2 ? o3 : t2;
-  }, "n"), l = /* @__PURE__ */ __name((e2, t3) => {
-    for (const [r3, o3] of Object.entries(t3)) o3 && e2.headers.append(r3, o3);
-    return e2;
-  }, "l");
-  return { corsify: /* @__PURE__ */ __name((e2, t3) => e2?.headers?.get("access-control-allow-origin") || 101 == e2.status ? e2 : l(e2.clone(), { "access-control-allow-origin": n(t3), "access-control-allow-credentials": r2 }), "corsify"), preflight: /* @__PURE__ */ __name((e2) => {
-    if ("OPTIONS" == e2.method) {
-      const t3 = new Response(null, { status: 204 });
-      return l(t3, { "access-control-allow-origin": n(e2), "access-control-allow-methods": o2?.join?.(",") ?? o2, "access-control-expose-headers": s?.join?.(",") ?? s, "access-control-allow-headers": a?.join?.(",") ?? a ?? e2.headers.get("access-control-request-headers"), "access-control-max-age": c, "access-control-allow-credentials": r2 });
-    }
-  }, "preflight") };
-}, "y");
-
-// src/index.js
-var { preflight, corsify } = y({
-  origin: "*",
-  allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowHeaders: ["Content-Type", "Authorization", "X-User-Email"]
-});
-var router = t();
-var withAuth = /* @__PURE__ */ __name((request) => {
-  const userEmail = request.headers.get("X-User-Email");
-  if (!userEmail) {
-    return new Response("Unauthorized - Missing User Email", { status: 401 });
-  }
-  request.userEmail = userEmail;
-}, "withAuth");
-router.all("*", (request) => {
-  console.log("[Worker Request]", request.method, request.url);
-  return preflight(request);
-});
-router.get("/", () => new Response("Leca API v6 - Online \u{1F942}", {
-  status: 200,
-  headers: { "content-type": "text/plain; charset=UTF-8" }
-}));
-router.get("/api/tasks", withAuth, async (request, env) => {
-  const { results } = await env.DB.prepare(
-    "SELECT * FROM tasks WHERE user_email = ? ORDER BY created_at DESC"
-  ).bind(request.userEmail).all();
-  return new Response(JSON.stringify(results), {
-    headers: { "content-type": "application/json" }
-  });
-});
-router.post("/api/tasks", withAuth, async (request, env) => {
-  try {
-    const body = await request.json();
-    const { uuid, name, targetFreq, completions } = body;
-    if (!uuid || !name) {
-      return new Response("Missing required fields", { status: 400 });
-    }
-    await env.DB.prepare(`
-      INSERT INTO tasks (uuid, user_email, name, target_freq, completions, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-      ON CONFLICT(uuid) DO UPDATE SET
-        name = excluded.name,
-        target_freq = excluded.target_freq,
-        completions = excluded.completions,
-        updated_at = excluded.updated_at
-    `).bind(
-      uuid,
-      request.userEmail,
-      name,
-      targetFreq || 1,
-      JSON.stringify(completions || []),
-      (/* @__PURE__ */ new Date()).toISOString()
-    ).run();
-    return new Response("OK", { status: 200 });
-  } catch (err) {
-    console.error("[Worker POST Error]", err);
-    return new Response("Sync Error: " + err.message, { status: 500 });
-  }
-});
-router.get("/api/debug", async (request, env) => {
-  try {
-    const tasksCountRes = await env.DB.prepare("SELECT COUNT(*) as total FROM tasks").first();
-    const tasksCount = tasksCountRes ? tasksCountRes.total : 0;
-    const users = await env.DB.prepare("SELECT email, last_login FROM users ORDER BY last_login DESC LIMIT 5").all();
-    return new Response(JSON.stringify({
-      status: "online",
-      database: "connected",
-      stats: { tasks: tasksCount },
-      recent_logins: users.results,
-      server_time: (/* @__PURE__ */ new Date()).toISOString(),
-      request_url: request.url
-    }), { headers: { "content-type": "application/json" } });
-  } catch (err) {
-    return new Response(JSON.stringify({ status: "error", error: err.message }), {
-      status: 500,
-      headers: { "content-type": "application/json" }
-    });
-  }
-});
-router.post("/api/login", async (request, env) => {
-  try {
-    const { email, name, picture } = await request.json();
-    if (!email) return new Response("Email required", { status: 400 });
-    await env.DB.prepare(`
-      INSERT INTO users (email, name, picture, last_login)
-      VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(email) DO UPDATE SET
-        name = excluded.name,
-        picture = excluded.picture,
-        last_login = CURRENT_TIMESTAMP
-    `).bind(email, name, picture).run();
-    return new Response("Login Tracked", { status: 200 });
-  } catch (err) {
-    return new Response(err.message, { status: 500 });
-  }
-});
-router.delete("/api/tasks/:uuid", withAuth, async (request, env) => {
-  const { uuid } = request.params;
-  await env.DB.prepare("DELETE FROM tasks WHERE uuid = ? AND user_email = ?").bind(uuid, request.userEmail).run();
-  return new Response("Deleted", { status: 200 });
-});
-router.all("*", () => new Response("404 Not Found \u{1F942}", { status: 404 }));
+var import_checked_fetch2 = __toESM(require_checked_fetch());
+var corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-User-Email"
+};
 var src_default = {
-  fetch: /* @__PURE__ */ __name((request, env, ctx) => router.handle(request, env, ctx).then(corsify), "fetch")
+  async fetch(request, env, ctx) {
+    if (request.method === "OPTIONS") {
+      return new Response(null, { headers: corsHeaders });
+    }
+    const url = new URL(request.url);
+    const path = url.pathname;
+    try {
+      if (path === "/" || path === "") {
+        return new Response("Leca API v6 - Online \u{1F942}", {
+          headers: { ...corsHeaders, "content-type": "text/plain; charset=UTF-8" }
+        });
+      }
+      if (path === "/api/debug" && request.method === "GET") {
+        const count = await env.DB.prepare("SELECT COUNT(*) as total FROM tasks").first();
+        const users = await env.DB.prepare("SELECT email, last_login FROM users ORDER BY last_login DESC LIMIT 5").all();
+        return new Response(JSON.stringify({
+          status: "online",
+          database: "connected",
+          stats: { tasks: count?.total || 0 },
+          recent_logins: users?.results || [],
+          server_time: (/* @__PURE__ */ new Date()).toISOString()
+        }), {
+          headers: { ...corsHeaders, "content-type": "application/json" }
+        });
+      }
+      if (path === "/api/login" && request.method === "POST") {
+        const { email, name, picture } = await request.json();
+        if (!email) return new Response("Email required", { status: 400, headers: corsHeaders });
+        await env.DB.prepare(`
+          INSERT INTO users (email, name, picture, last_login)
+          VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+          ON CONFLICT(email) DO UPDATE SET
+            name = excluded.name,
+            picture = excluded.picture,
+            last_login = CURRENT_TIMESTAMP
+        `).bind(email, name, picture).run();
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, "content-type": "application/json" }
+        });
+      }
+      if (path.startsWith("/api/tasks")) {
+        const userEmail = request.headers.get("X-User-Email");
+        if (!userEmail) {
+          return new Response("Unauthorized - Missing X-User-Email header", { status: 401, headers: corsHeaders });
+        }
+        if (request.method === "GET") {
+          const { results } = await env.DB.prepare(
+            "SELECT * FROM tasks WHERE user_email = ? ORDER BY created_at DESC"
+          ).bind(userEmail).all();
+          return new Response(JSON.stringify(results), {
+            headers: { ...corsHeaders, "content-type": "application/json" }
+          });
+        }
+        if (request.method === "POST") {
+          const body = await request.json();
+          const { uuid, name, targetFreq, completions } = body;
+          if (!uuid || !name) return new Response("Missing required fields", { status: 400, headers: corsHeaders });
+          await env.DB.prepare(`
+            INSERT INTO tasks (uuid, user_email, name, target_freq, completions, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(uuid) DO UPDATE SET
+              name = excluded.name,
+              target_freq = excluded.target_freq,
+              completions = excluded.completions,
+              updated_at = excluded.updated_at
+          `).bind(
+            uuid,
+            userEmail,
+            name,
+            targetFreq || 1,
+            JSON.stringify(completions || []),
+            (/* @__PURE__ */ new Date()).toISOString()
+          ).run();
+          return new Response("OK", { headers: corsHeaders });
+        }
+        const match = path.match(/^\/api\/tasks\/([^\/]+)$/);
+        if (request.method === "DELETE" && match) {
+          const uuid = match[1];
+          await env.DB.prepare("DELETE FROM tasks WHERE uuid = ? AND user_email = ?").bind(uuid, userEmail).run();
+          return new Response("Deleted", { headers: corsHeaders });
+        }
+      }
+      return new Response("Not Found", { status: 404, headers: corsHeaders });
+    } catch (err) {
+      console.error("[Worker Error]", err);
+      return new Response(JSON.stringify({ error: err.message, stack: err.stack }), {
+        status: 500,
+        headers: { ...corsHeaders, "content-type": "application/json" }
+      });
+    }
+  }
 };
 
 // node_modules/wrangler/templates/middleware/middleware-ensure-req-body-drained.ts
-var import_checked_fetch4 = __toESM(require_checked_fetch());
+var import_checked_fetch3 = __toESM(require_checked_fetch());
 var drainBody = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx) => {
   try {
     return await middlewareCtx.next(request, env);
@@ -249,7 +191,7 @@ var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
 var middleware_insertion_facade_default = src_default;
 
 // node_modules/wrangler/templates/middleware/common.ts
-var import_checked_fetch6 = __toESM(require_checked_fetch());
+var import_checked_fetch5 = __toESM(require_checked_fetch());
 var __facade_middleware__ = [];
 function __facade_register__(...args) {
   __facade_middleware__.push(...args.flat());
