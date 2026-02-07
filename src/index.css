@@ -192,10 +192,10 @@ td {
 }
 
 .checkbox-day {
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
-  min-height: 36px;
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+  min-height: 42px;
   border: 2px solid rgba(255, 255, 255, 0.1);
   border-radius: 9px;
   cursor: pointer;
