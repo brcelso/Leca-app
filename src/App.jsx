@@ -334,6 +334,65 @@ function App() {
             <button className="btn-secondary" onClick={() => setUser({ name: 'Dev User', email: 'dev@leca.app', picture: '' })} style={{ opacity: 0.5, fontSize: '0.7rem' }}>Entrar modo Dev (Sem Google)</button>
           </div>
         </div>
+
+        {/* Troubleshooter available on Login Screen */}
+        {showTroubleshooter && (
+          <div className="modal-overlay" style={{ zIndex: 10000 }}>
+            <div className="glass-card fade-in" style={{ maxWidth: '450px', padding: '2rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Activity className="text-primary" size={24} />
+                  <h2 style={{ margin: 0 }}>Cloud Connection Center</h2>
+                </div>
+                <button onClick={() => setShowTroubleshooter(false)} className="btn-icon-tiny"><X size={24} /></button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div className="troubleshoot-item">
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Endereço do Servidor</span>
+                    <code style={{ fontSize: '0.7rem', opacity: 0.6 }}>{diagnostics.url?.replace('https://', '')}</code>
+                  </div>
+                </div>
+
+                <div className="troubleshoot-check">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                    {diagnostics.health === 'loading' ? <RefreshCw className="spin" size={18} /> :
+                      diagnostics.health === 'ok' ? <CheckCircle2 size={18} color="var(--success)" /> : <XCircle size={18} color="var(--danger)" />}
+                    <span>Status do Servidor (Health)</span>
+                  </div>
+                </div>
+
+                <div className="troubleshoot-check">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                    {diagnostics.db === 'loading' ? <RefreshCw className="spin" size={18} /> :
+                      diagnostics.db === 'ok' ? <CheckCircle2 size={18} color="var(--success)" /> : <XCircle size={18} color="var(--danger)" />}
+                    <span>Conexão com Banco de Dados (D1)</span>
+                  </div>
+                </div>
+
+                <div className="troubleshoot-check">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                    {diagnostics.userInCloud === 'loading' ? <RefreshCw className="spin" size={18} /> :
+                      diagnostics.userInCloud === 'ok' ? <CheckCircle2 size={18} color="var(--success)" /> : <XCircle size={18} color="var(--danger)" />}
+                    <span>Seu Login está salvo na Nuvem?</span>
+                  </div>
+                </div>
+
+                <div style={{ background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px', marginTop: '1rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                    <span>Total de Tarefas no Banco:</span>
+                    <span style={{ fontWeight: 'bold', color: 'var(--primary)' }}>{diagnostics.count}</span>
+                  </div>
+                </div>
+
+                <button className="btn-primary" onClick={() => runDiagnostics()} style={{ marginTop: '1rem' }}>
+                  <RefreshCw size={16} style={{ marginRight: '0.5rem' }} /> Re-testar Agora
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
