@@ -1,3 +1,4 @@
+// Leca Enterprise - High Performance Habit Tracker | v1.0.1 (Build Trigger)
 import React, { useState, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Plus, Check, Trash2, Edit2, Calendar, Target, TrendingUp, History, X, Save, RefreshCw, Settings, ShieldCheck, AlertCircle, LayoutGrid, List, Info, Database, Cloud, CloudOff, LogOut, User } from 'lucide-react';
