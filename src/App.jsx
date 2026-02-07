@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Plus, Check, Trash2, Edit2, Calendar, Target, TrendingUp, History, X, Save, RefreshCw, Settings, ShieldCheck, AlertCircle, LayoutGrid, List } from 'lucide-react';
+import { Plus, Check, Trash2, Edit2, Calendar, Target, TrendingUp, History, X, Save, RefreshCw, Settings, ShieldCheck, AlertCircle, LayoutGrid, List, Info } from 'lucide-react';
 import { format, startOfWeek, addDays, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { db, migrateFromLocalStorage, gun, getSyncNode, syncTaskToGun, syncAllToGun } from './db';
@@ -30,11 +30,8 @@ function App() {
   // Handle Resize for View Mode
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth < 768) {
-        setViewMode('cards');
-      } else {
-        setViewMode('table');
-      }
+      if (window.innerWidth < 768) setViewMode('cards');
+      else setViewMode('table');
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -62,7 +59,7 @@ function App() {
     init();
   }, [currentWeekStartStr, syncPhrase]);
 
-  // Gun.js Subscription
+  // Gun.js Subscription & Peer Management
   useEffect(() => {
     if (!syncPhrase || syncPhrase.trim().length < 4) {
       setSyncStatus('idle');
@@ -73,31 +70,47 @@ function App() {
     if (!node) return;
 
     setSyncStatus('active');
+    console.log(`[Leca Sync] Starting listeners for phrase: ${syncPhrase}`);
+
+    // Explicitly push current state once to ensure new peers see our data
+    syncAllToGun(syncPhrase);
+
     const tasksNode = node.get('tasks');
 
+    // Process incoming data
     const sub = tasksNode.map().on(async (data, name) => {
       if (!data) return;
+
       setIsSyncing(true);
       const localTask = await db.tasks.where('name').equals(name).first();
+      // Gun might send partial data if we are not careful, but here it should be the whole object
       const remoteCompletions = JSON.parse(data.completions || '[]');
 
       if (!localTask) {
+        console.log(`[Leca Sync] New task discovered: ${name}`);
         await db.tasks.add({
           name: data.name,
           targetFreq: data.targetFreq,
           completions: remoteCompletions,
-          createdAt: data.createdAt
+          createdAt: data.createdAt || new Date().toISOString()
         });
       } else {
         const localCompletions = localTask.completions || [];
+        // Merge strategy: Unique union of both sets
         const combined = Array.from(new Set([...localCompletions, ...remoteCompletions]));
 
-        if (combined.length > localCompletions.length || data.targetFreq !== localTask.targetFreq) {
+        const hasNewData = combined.length > localCompletions.length || data.targetFreq !== localTask.targetFreq;
+
+        if (hasNewData) {
+          console.log(`[Leca Sync] Updating local task with remote data: ${name}`);
           await db.tasks.update(localTask.id, {
             targetFreq: data.targetFreq,
             completions: combined
           });
+
+          // If our local merged version is actually newer/more complete than remote, push it back
           if (combined.length > remoteCompletions.length) {
+            console.log(`[Leca Sync] Reflecting merged data back to node: ${name}`);
             syncTaskToGun({ ...localTask, completions: combined, targetFreq: data.targetFreq }, syncPhrase);
           }
         }
@@ -105,16 +118,22 @@ function App() {
       setTimeout(() => setIsSyncing(false), 800);
     });
 
-    return () => tasksNode.off();
+    return () => {
+      console.log("[Leca Sync] Stopping listeners");
+      tasksNode.off();
+    };
   }, [syncPhrase]);
 
   const saveSyncPhrase = (phrase) => {
     const trimmed = phrase.trim().toLowerCase();
+    if (trimmed === syncPhrase) return;
+
     setSyncPhrase(trimmed);
     localStorage.setItem('leca_sync_phrase', trimmed);
     if (trimmed.length >= 4) {
       setSyncStatus('active');
-      syncAllToGun(trimmed);
+      // Delay push slightly to ensure node is ready
+      setTimeout(() => syncAllToGun(trimmed), 500);
     } else {
       setSyncStatus('idle');
     }
@@ -187,7 +206,7 @@ function App() {
   };
 
   const deleteTask = async (id) => {
-    if (confirm('Tem certeza que deseja excluir esta tarefa?')) {
+    if (confirm('Deseja realmente excluir este hábito?')) {
       const task = await db.tasks.get(id);
       await db.tasks.delete(id);
       if (syncPhrase && syncPhrase.length >= 4 && task) {
@@ -221,14 +240,14 @@ function App() {
       <header className="header">
         <div>
           <h1 className="fade-in">Leca</h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Hábitos e Frequência</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Foco e Consistência</p>
         </div>
         <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
           <div
             className={`sync-status ${syncStatus} ${isSyncing ? 'syncing' : ''}`}
             onClick={manualSync}
             style={{ cursor: 'pointer' }}
-            title={syncPhrase ? (isSyncing ? 'Sincronizando...' : `Conectado: ${syncPhrase}`) : 'Sincronização desativada'}
+            title={syncPhrase ? (isSyncing ? 'Sincronizando...' : `Conectado: ${syncPhrase}`) : 'Sem sincronização'}
           >
             <RefreshCw size={18} className={isSyncing ? 'spin' : ''} />
           </div>
@@ -242,7 +261,7 @@ function App() {
             <History size={22} />
           </button>
           <button className="btn-primary" onClick={() => openModal()} style={{ marginLeft: '0.5rem' }}>
-            <Plus size={20} /> <span className="hide-mobile">Nova Tarefa</span>
+            <Plus size={20} /> <span className="hide-mobile">Novo</span>
           </button>
         </div>
       </header>
@@ -254,12 +273,17 @@ function App() {
               <h2>Sincronização Cloud</h2>
               <button onClick={() => setShowSettings(false)} className="btn-icon-tiny"><X size={24} /></button>
             </div>
-            <p style={{ marginBottom: '1rem', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-              Use uma frase única para sincronizar dados entre aparelhos.
-            </p>
+
+            <div className="info-box">
+              <Info size={20} color="var(--primary)" />
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-main)' }}>
+                Use a mesma frase em outros dispositivos para manter seus hábitos sincronizados.
+              </p>
+            </div>
+
             <input
               type="text"
-              placeholder="Ex: meu-diario-2026"
+              placeholder="Sua frase secreta..."
               defaultValue={syncPhrase}
               onBlur={(e) => saveSyncPhrase(e.target.value)}
               className="sync-input"
@@ -267,9 +291,14 @@ function App() {
             {syncPhrase && (
               <div className={syncPhrase.length >= 4 ? "success-text" : "error-text"}>
                 {syncPhrase.length >= 4 ? <ShieldCheck size={16} /> : <AlertCircle size={16} />}
-                {syncPhrase.length >= 4 ? `Sincronização Ativa: ${syncPhrase}` : "Mínimo 4 caracteres."}
+                {syncPhrase.length >= 4 ? `Sincronização Ativa` : "Frase muito curta (mínimo 4)."}
               </div>
             )}
+
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center', marginBottom: '1.5rem' }}>
+              Dica: Após configurar o ID pela primeira vez, clique no ícone de setinhas no topo para garantir o envio inicial.
+            </p>
+
             <button className="btn-primary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setShowSettings(false)}>Fechar</button>
           </div>
         </div>
@@ -277,15 +306,15 @@ function App() {
 
       {showHistory && (
         <div className="glass-card fade-in" style={{ marginBottom: '2rem', padding: '1.5rem' }}>
-          <h2 style={{ marginBottom: '1rem', fontSize: '1.25rem', color: 'var(--primary)' }}>Histórico</h2>
+          <h2 style={{ marginBottom: '1rem', fontSize: '1.25rem', color: 'var(--primary)' }}>Histórico Semanal</h2>
           <div className="stats-grid">
             {history.length === 0 ? (
-              <p style={{ color: 'var(--text-muted)', textAlign: 'center', gridColumn: '1/-1' }}>Vazio.</p>
+              <p style={{ color: 'var(--text-muted)', textAlign: 'center', gridColumn: '1/-1' }}>Nenhum histórico disponível ainda.</p>
             ) : (
               history.map((h) => (
                 <div key={h.id} className="glass-card" style={{ padding: '1rem', background: 'rgba(255,255,255,0.05)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>{format(parseISO(h.weekStart), 'dd/MM')}</span>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>Semana {format(parseISO(h.weekStart), 'dd/MM')}</span>
                     <span style={{ color: 'var(--success)', fontWeight: 700 }}>{h.score}%</span>
                   </div>
                   <div className="progress-bar-container">
@@ -300,24 +329,28 @@ function App() {
 
       <div className="stats-grid">
         <div className="glass-card stat-card fade-in">
-          <div className="stat-label">Progresso</div>
+          <div className="stat-label">Progresso Semanal</div>
           <div className="stat-value">{totalScore}%</div>
           <div className="progress-bar-container">
             <div className="progress-bar" style={{ width: `${totalScore}%` }}></div>
           </div>
         </div>
         <div className="glass-card stat-card fade-in" style={{ animationDelay: '0.1s' }}>
-          <div className="stat-label">Cofrequência</div>
+          <div className="stat-label">Cofrequência Hoje</div>
           <div className="stat-value">{calculateDailyCompletion(today)}%</div>
         </div>
         <div className="glass-card stat-card fade-in" style={{ animationDelay: '0.2s' }}>
-          <div className="stat-label">Hábitos</div>
+          <div className="stat-label">Total de Hábitos</div>
           <div className="stat-value">{tasks.length}</div>
         </div>
       </div>
 
       <div className="glass-card fade-in" style={{ padding: viewMode === 'table' ? '0' : '1.5rem' }}>
-        {viewMode === 'table' ? (
+        {tasks.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+            Nenhum hábito no momento. Clique em "Novo" para começar!
+          </div>
+        ) : viewMode === 'table' ? (
           <div className="task-table-container">
             <table>
               <thead>
@@ -326,7 +359,7 @@ function App() {
                   {DAYS_OF_WEEK.map(d => (
                     <th key={d}>{format(addDays(currentWeekStart, d), 'EEE', { locale: ptBR })}</th>
                   ))}
-                  <th style={{ paddingRight: '1.5rem' }}>%</th>
+                  <th style={{ paddingRight: '1.5rem' }}>Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -334,10 +367,10 @@ function App() {
                   <tr key={task.id}>
                     <td style={{ paddingLeft: '1.5rem' }}>
                       <div className="task-name">{task.name}</div>
-                      <div className="task-frequency">Meta: {task.targetFreq}x</div>
+                      <div className="task-frequency">{task.targetFreq}x p/ semana</div>
                       <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                        <button onClick={() => openModal(task)} className="btn-icon-tiny" style={{ color: 'var(--text-muted)' }}><Edit2 size={14} /></button>
-                        <button onClick={() => deleteTask(task.id)} className="btn-icon-tiny" style={{ color: 'var(--danger)' }}><Trash2 size={14} /></button>
+                        <button onClick={() => openModal(task)} className="btn-icon-tiny" style={{ color: 'var(--text-muted)' }}><Edit2 size={13} /></button>
+                        <button onClick={() => deleteTask(task.id)} className="btn-icon-tiny" style={{ color: 'var(--danger)' }}><Trash2 size={13} /></button>
                       </div>
                     </td>
                     {DAYS_OF_WEEK.map(d => {
@@ -351,7 +384,7 @@ function App() {
                         </td>
                       );
                     })}
-                    <td style={{ textAlign: 'center', paddingRight: '1.5rem', fontWeight: 600 }}>{calculateWeeklyProgress(task)}%</td>
+                    <td style={{ textAlign: 'center', paddingRight: '1.5rem', fontWeight: 700, color: 'var(--primary)' }}>{calculateWeeklyProgress(task)}%</td>
                   </tr>
                 ))}
               </tbody>
@@ -364,23 +397,23 @@ function App() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
                   <div>
                     <div className="task-name" style={{ fontSize: '1.1rem' }}>{task.name}</div>
-                    <div className="task-frequency">Meta semanal: {task.targetFreq}x</div>
+                    <div className="task-frequency">Meta: {task.targetFreq}x</div>
                   </div>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <button onClick={() => openModal(task)} className="btn-icon-tiny" style={{ color: 'var(--text-muted)' }}><Edit2 size={18} /></button>
                     <button onClick={() => deleteTask(task.id)} className="btn-icon-tiny" style={{ color: 'var(--danger)' }}><Trash2 size={18} /></button>
                   </div>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.5rem', marginBottom: '1rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.4rem', marginBottom: '1rem' }}>
                   {DAYS_OF_WEEK.map(d => {
                     const dayDate = addDays(currentWeekStart, d);
                     const isDone = (task.completions || []).includes(format(dayDate, 'yyyy-MM-dd'));
                     return (
                       <div key={d} style={{ textAlign: 'center' }}>
-                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginBottom: '0.4rem' }}>
+                        <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginBottom: '0.4rem' }}>
                           {format(dayDate, 'EEEEE', { locale: ptBR })}
                         </div>
-                        <div className={`checkbox-day ${isDone ? 'checked' : ''}`} style={{ width: '100%', height: '38px' }} onClick={() => toggleDay(task, dayDate)}>
+                        <div className={`checkbox-day ${isDone ? 'checked' : ''}`} style={{ width: '100%', height: '36px' }} onClick={() => toggleDay(task, dayDate)}>
                           {isDone && <Check size={18} color="white" />}
                         </div>
                       </div>
@@ -391,7 +424,7 @@ function App() {
                   <div className="progress-bar-container" style={{ flex: 1, marginRight: '1rem', marginTop: 0 }}>
                     <div className="progress-bar" style={{ width: `${calculateWeeklyProgress(task)}%` }}></div>
                   </div>
-                  <span style={{ fontWeight: 700, minWidth: '40px', textAlign: 'right' }}>{calculateWeeklyProgress(task)}%</span>
+                  <span style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--primary)' }}>{calculateWeeklyProgress(task)}%</span>
                 </div>
               </div>
             ))}
@@ -407,9 +440,9 @@ function App() {
               <button onClick={closeModal} className="btn-icon-tiny"><X size={24} /></button>
             </div>
             <form onSubmit={handleSubmit}>
-              <label>Nome</label>
-              <input type="text" value={taskName} onChange={(e) => setTaskName(e.target.value)} autoFocus placeholder="Ex: Academia" />
-              <label>Frequência (vezes por semana)</label>
+              <label>Nome do Hábito</label>
+              <input type="text" value={taskName} onChange={(e) => setTaskName(e.target.value)} autoFocus placeholder="Nome do hábito..." />
+              <label>Frequência (vezes p/ semana)</label>
               <select value={taskFreq} onChange={(e) => setTaskFreq(e.target.value)}>
                 {[1, 2, 3, 4, 5, 6, 7].map(n => <option key={n} value={n}>{n}x por semana</option>)}
               </select>
