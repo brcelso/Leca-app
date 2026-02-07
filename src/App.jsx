@@ -62,7 +62,8 @@ function App() {
       });
       if (dRes.ok) {
         const data = await dRes.json();
-        const isInCloud = data.recent_logins?.some(u => u.email === emailToSearch);
+        // Use the new secure flag 'user_exists' from backend
+        const isInCloud = data.stats?.user_exists === true;
         setDiagnostics(prev => ({
           ...prev,
           db: 'ok',
