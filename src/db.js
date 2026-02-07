@@ -1,17 +1,10 @@
 import Dexie from 'dexie';
-import { createClient } from '@supabase/supabase-js';
 
-// Supabase Configuration from Environment
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-// Create Supabase client (only if credentials exist)
-export const supabase = (supabaseUrl && supabaseKey && !supabaseUrl.includes('YOUR_'))
-    ? createClient(supabaseUrl, supabaseKey)
-    : null;
+// Cloudflare Worker API URL
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787/api';
 
 // Local DB (Dexie) - cache for offline usage and performance
-export const db = new Dexie('LecaDB_v5');
+export const db = new Dexie('LecaDB_v6'); // Incremented version for v6 (Enterprise)
 db.version(1).stores({
     tasks: '++id, uuid, name, targetFreq, completions, createdAt, updatedAt',
     history: '++id, weekStart, score'
@@ -22,58 +15,93 @@ export const generateUUID = () => {
     return crypto.randomUUID();
 };
 
-// Sync single task to Supabase
-export const syncTaskToCloud = async (task, phrase) => {
-    if (!supabase || !phrase || phrase.length < 4) return;
+/**
+ * Sync single task to Cloudflare Worker
+ * @param {Object} task 
+ * @param {String} userEmail 
+ * @param {String} token (Optional for now)
+ */
+export const syncTaskToCloud = async (task, userEmail) => {
+    if (!userEmail) return;
 
     try {
-        const { error } = await supabase
-            .from('leca_tasks')
-            .upsert({
+        const response = await fetch(`${API_URL}/tasks`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-User-Email': userEmail, // Dev-mode identification
+                'Authorization': `Bearer local-dev-token`
+            },
+            body: JSON.stringify({
                 uuid: task.uuid,
-                sync_id: phrase.trim().toLowerCase(),
                 name: task.name,
-                target_freq: task.targetFreq,
+                targetFreq: task.targetFreq,
                 completions: task.completions || [],
-                updated_at: new Date().toISOString()
-            }, { onConflict: 'uuid' });
+                updatedAt: new Date().toISOString()
+            })
+        });
 
-        if (error) console.error('[Supabase Sync Error]', error.message);
+        if (!response.ok) {
+            console.error('[Worker Sync Error]', await response.text());
+        }
     } catch (err) {
-        console.error('[Supabase Catastrophic Failure]', err);
+        console.error('[Worker Connection Failure]', err);
     }
 };
 
-// Push all local tasks to Supabase
-export const syncAllToCloud = async (phrase) => {
-    if (!supabase || !phrase || phrase.length < 4) return;
+/**
+ * Fetch all tasks from Cloudflare
+ */
+export const fetchAllTasks = async (userEmail) => {
+    if (!userEmail) return [];
+    try {
+        const response = await fetch(`${API_URL}/tasks`, {
+            headers: {
+                'X-User-Email': userEmail,
+                'Authorization': `Bearer local-dev-token`
+            }
+        });
+        if (response.ok) return await response.json();
+        return [];
+    } catch (err) {
+        console.error('[Worker Fetch Failure]', err);
+        return [];
+    }
+};
+
+/**
+ * Push all local tasks to Cloudflare
+ */
+export const syncAllToCloud = async (userEmail) => {
+    if (!userEmail) return;
     const allTasks = await db.tasks.toArray();
     for (const task of allTasks) {
-        await syncTaskToCloud(task, phrase);
+        await syncTaskToCloud(task, userEmail);
     }
 };
 
-// Initial Migration helper
+/**
+ * Migration helper from LecaDB_v5 (Supabase version)
+ */
 export const migrateData = async () => {
-    // Migration from v4 (if exists)
-    const oldDb = new Dexie('LecaDB');
     try {
-        const exists = await Dexie.exists('LecaDB');
-        if (exists) {
-            await oldDb.open();
-            const oldTasks = await oldDb.table('tasks').toArray();
+        const v5Exists = await Dexie.exists('LecaDB_v5');
+        if (v5Exists) {
+            const v5Db = new Dexie('LecaDB_v5');
+            await v5Db.open();
+            const oldTasks = await v5Db.table('tasks').toArray();
             for (const t of oldTasks) {
-                const alreadyMigrated = await db.tasks.where('uuid').equals(t.uuid).first();
-                if (!alreadyMigrated) {
+                const exists = await db.tasks.where('uuid').equals(t.uuid).first();
+                if (!exists) {
                     await db.tasks.add({
                         ...t,
                         updatedAt: t.updatedAt || new Date().toISOString()
                     });
                 }
             }
-            console.log('[Migration] Data from v4 moved to v5');
+            console.log('[Migration] Data moved from v5 to v6');
         }
     } catch (e) {
-        console.warn('[Migration] No v4 data found or error:', e);
+        console.warn('[Migration] Error or no previous data:', e);
     }
 };

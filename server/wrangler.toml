@@ -1,0 +1,11 @@
+name = "leca-server"
+main = "src/index.js"
+compatibility_date = "2024-02-07"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "leca-db"
+database_id = "63f179b8-009b-4d83-b939-4b19511e765b"
+
+[vars]
+GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID"
