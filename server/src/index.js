@@ -24,16 +24,26 @@ export default {
         });
       }
 
-      // 2. Debug Endpoint
+      // 2. Debug Endpoint (Secured)
       if (path === '/api/debug' && request.method === 'GET') {
-        const count = await env.DB.prepare('SELECT COUNT(*) as total FROM tasks').first();
-        const users = await env.DB.prepare('SELECT email, last_login FROM users ORDER BY last_login DESC LIMIT 5').all();
+        const userEmail = request.headers.get('X-User-Email');
+        let stats = { tasks: null };
+        let recent_logins = [];
+
+        if (userEmail) {
+          // Verify user exists or just trust header for debug (in prod use real auth)
+          const count = await env.DB.prepare('SELECT COUNT(*) as total FROM tasks WHERE user_email = ?').bind(userEmail).first();
+          stats.tasks = count?.total || 0;
+
+          // Only show recent logins to a specific admin email if needed, otherwise empty
+          // recent_logins = ... (Disabled for privacy)
+        }
 
         return new Response(JSON.stringify({
           status: 'online',
           database: 'connected',
-          stats: { tasks: count?.total || 0 },
-          recent_logins: users?.results || [],
+          stats: stats,
+          recent_logins: [], // Privacy: Never leak other users
           server_time: new Date().toISOString()
         }), {
           headers: { ...corsHeaders, 'content-type': 'application/json' }

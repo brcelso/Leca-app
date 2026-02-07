@@ -57,7 +57,9 @@ function App() {
       setDiagnostics(prev => ({ ...prev, health: isHealthOk ? 'ok' : 'fail' }));
 
       // 2. DB Debug Check
-      const dRes = await fetch(`${apiBase}/api/debug`);
+      const dRes = await fetch(`${apiBase}/api/debug`, {
+        headers: { 'X-User-Email': emailToSearch || '' }
+      });
       if (dRes.ok) {
         const data = await dRes.json();
         const isInCloud = data.recent_logins?.some(u => u.email === emailToSearch);
