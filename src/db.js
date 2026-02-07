@@ -1,7 +1,7 @@
 import Dexie from 'dexie';
 import Gun from 'gun';
 
-// Gun.js Init - using a more diverse and updated set of public relays
+// Gun.js Init - diversified relays
 export const gun = Gun({
     peers: [
         'https://gun-manhattan.herokuapp.com/gun',
@@ -14,26 +14,40 @@ export const gun = Gun({
 
 export const db = new Dexie('LecaDB');
 
-db.version(1).stores({
-    tasks: '++id, name, targetFreq, completions, createdAt',
+// Version 2: Added 'uuid' to tasks for stable sync
+db.version(2).stores({
+    tasks: '++id, uuid, name, targetFreq, completions, createdAt',
     history: '++id, weekStart, score'
 });
+
+// Utility to generate UUID v4
+export const generateUUID = () => {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+};
 
 // Helper to get the sync node based on a phrase
 export const getSyncNode = (phrase) => {
     if (!phrase || phrase.trim().length < 4) return null;
-    // We use a new namespace to ensure we start with clean data
     const cleanPhrase = phrase.trim().toLowerCase().replace(/[^a-z0-9]/g, '_');
-    return gun.get('leca_v3_final').get(cleanPhrase);
+    // Fresh namespace for the new UUID-based architecture
+    return gun.get('leca_v4_core').get(cleanPhrase);
 };
 
-// Sync local task to Gun
+// Sync local task to Gun using UUID as the key
 export const syncTaskToGun = (task, phrase) => {
     const node = getSyncNode(phrase);
-    if (!node) return;
+    if (!node || !task.uuid) {
+        console.warn('[Sync] Missing phrase or UUID for task:', task.name);
+        return;
+    }
 
-    console.log(`Syncing task to cloud: ${task.name}`);
-    node.get('tasks').get(task.name).put({
+    console.log(`[Sync] Pushing task to cloud: ${task.name} (${task.uuid})`);
+    node.get('tasks').get(task.uuid).put({
+        uuid: task.uuid,
         name: task.name,
         targetFreq: task.targetFreq,
         completions: JSON.stringify(task.completions || []),
@@ -46,24 +60,33 @@ export const syncTaskToGun = (task, phrase) => {
 export const syncAllToGun = async (phrase) => {
     if (!phrase || phrase.length < 4) return;
     const allTasks = await db.tasks.toArray();
-    console.log(`Pushing ${allTasks.length} tasks to cloud...`);
-    allTasks.forEach(task => syncTaskToGun(task, phrase));
+    console.log(`[Sync] Triggering full push of ${allTasks.length} tasks...`);
+    allTasks.forEach(task => {
+        if (!task.uuid) {
+            // Assign UUID if missing for legacy data
+            const uuid = generateUUID();
+            db.tasks.update(task.id, { uuid });
+            syncTaskToGun({ ...task, uuid }, phrase);
+        } else {
+            syncTaskToGun(task, phrase);
+        }
+    });
 };
 
-// Helper for initial migration from older LocalStorage versions
 export const migrateFromLocalStorage = async () => {
     const tasks = JSON.parse(localStorage.getItem('leca_tasks') || '[]');
     const history = JSON.parse(localStorage.getItem('leca_history') || '[]');
 
     if (tasks.length > 0 || history.length > 0) {
-        console.log('Migrating data from LocalStorage to IndexedDB...');
+        console.log('[Migration] Moving data to IndexedDB...');
         for (const task of tasks) {
             const exists = await db.tasks.where('name').equals(task.name).first();
             if (!exists) {
                 await db.tasks.add({
+                    uuid: generateUUID(),
                     name: task.name,
                     targetFreq: task.targetFreq,
-                    completions: task.completions,
+                    completions: task.completions || [],
                     createdAt: task.createdAt || new Date().toISOString()
                 });
             }
