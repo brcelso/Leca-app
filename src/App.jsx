@@ -24,6 +24,10 @@ function App() {
   const [viewMode, setViewMode] = useState(window.innerWidth < 768 ? 'cards' : 'table');
   const [debugOverlay, setDebugOverlay] = useState(null);
 
+  useEffect(() => {
+    console.log('[Leca Diagnostics] API URL:', import.meta.env.VITE_API_URL);
+  }, []);
+
   const today = new Date();
   const currentWeekStart = startOfWeek(today, { weekStartsOn: 0 });
   const currentWeekStartStr = format(currentWeekStart, 'yyyy-MM-dd');
@@ -310,9 +314,18 @@ function App() {
         <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
           <div
             className={`sync-status active ${isSyncing ? 'syncing' : ''}`}
-            onClick={() => syncAllToCloud(user.email)}
+            onClick={async () => {
+              setIsSyncing(true);
+              try {
+                const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8787/api'}/debug`);
+                if (res.ok) setDebugOverlay(await res.json());
+                else console.error('[Manual Debug Failed]', await res.text());
+                await syncAllToCloud(user.email);
+              } catch (e) { console.error(e); }
+              setIsSyncing(false);
+            }}
             style={{ cursor: 'pointer' }}
-            title="Sincronizado via Cloudflare D1"
+            title="Forçar Sincronização e Debug"
           >
             <ShieldCheck size={18} />
           </div>
