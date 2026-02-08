@@ -29,13 +29,14 @@ export const generateUUID = () => {
  */
 export const syncTaskToCloud = async (task, userEmail) => {
     if (!userEmail) return;
+    const email = userEmail.toLowerCase();
 
     try {
         const response = await fetch(`${API_URL}/tasks`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-User-Email': userEmail, // Dev-mode identification
+                'X-User-Email': email, // Normalized email
                 'Authorization': `Bearer local-dev-token`
             },
             body: JSON.stringify({
@@ -60,10 +61,11 @@ export const syncTaskToCloud = async (task, userEmail) => {
  */
 export const fetchAllTasks = async (userEmail) => {
     if (!userEmail) return [];
+    const email = userEmail.toLowerCase();
     try {
         const response = await fetch(`${API_URL}/tasks`, {
             headers: {
-                'X-User-Email': userEmail,
+                'X-User-Email': email,
                 'Authorization': `Bearer local-dev-token`
             }
         });
@@ -80,9 +82,10 @@ export const fetchAllTasks = async (userEmail) => {
  */
 export const syncAllToCloud = async (userEmail) => {
     if (!userEmail) return;
+    const email = userEmail.toLowerCase();
     const allTasks = await db.tasks.toArray();
     for (const task of allTasks) {
-        await syncTaskToCloud(task, userEmail);
+        await syncTaskToCloud(task, email);
     }
 };
 
