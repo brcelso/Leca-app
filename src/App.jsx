@@ -409,6 +409,23 @@ function App() {
                 <button className="btn-primary" onClick={() => runDiagnostics()} style={{ marginTop: '1rem' }}>
                   <RefreshCw size={16} style={{ marginRight: '0.5rem' }} /> Re-testar Agora
                 </button>
+                <button
+                  className="btn-secondary"
+                  onClick={async () => {
+                    setIsSyncing(true);
+                    try {
+                      await syncAllToCloud(user?.email);
+                      alert('Sync completo! Re-teste a conexão.');
+                      await runDiagnostics();
+                    } catch (e) {
+                      alert('Erro no sync: ' + e.message);
+                    }
+                    setIsSyncing(false);
+                  }}
+                  style={{ marginTop: '0.5rem' }}
+                >
+                  <Cloud size={16} style={{ marginRight: '0.5rem' }} /> Forçar Sync de Tarefas
+                </button>
               </div>
             </div>
           </div>
