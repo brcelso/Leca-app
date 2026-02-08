@@ -374,12 +374,6 @@ function App() {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div className="troubleshoot-item">
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Endereço do Servidor</span>
-                    <code style={{ fontSize: '0.7rem', opacity: 0.6 }}>{diagnostics.url?.replace('https://', '')}</code>
-                  </div>
-                </div>
 
                 <div className="troubleshoot-check">
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
@@ -462,9 +456,6 @@ function App() {
           >
             <Database size={20} />
           </a>
-          <button className="btn-icon" onClick={logout} title="Sair">
-            <LogOut size={22} />
-          </button>
           <button className="btn-icon hide-mobile" onClick={() => setViewMode(viewMode === 'table' ? 'cards' : 'table')} title="Layout">
             {viewMode === 'table' ? <LayoutGrid size={22} /> : <List size={22} />}
           </button>
@@ -473,6 +464,9 @@ function App() {
           </button>
           <button className="btn-primary" onClick={() => openModal()} style={{ marginLeft: '0.4rem' }}>
             <Plus size={20} /> <span className="hide-mobile">Novo</span>
+          </button>
+          <button className="btn-icon" onClick={logout} title="Sair" style={{ marginLeft: 'auto' }}>
+            <LogOut size={22} />
           </button>
         </div>
       </header>

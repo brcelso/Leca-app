@@ -27,16 +27,18 @@ export default {
       // 2. Debug Endpoint (Secured)
       if (path === '/api/debug' && request.method === 'GET') {
         const userEmail = request.headers.get('X-User-Email');
-        let stats = { tasks: null };
-        let recent_logins = [];
+        let stats = { tasks: null, user_exists: false };
 
         if (userEmail) {
-          // Verify user exists or just trust header for debug (in prod use real auth)
-          const count = await env.DB.prepare('SELECT COUNT(*) as total FROM tasks WHERE user_email = ?').bind(userEmail).first();
-          stats.tasks = count?.total || 0;
+          const emailLower = userEmail.toLowerCase();
 
-          // Only show recent logins to a specific admin email if needed, otherwise empty
-          // recent_logins = ... (Disabled for privacy)
+          // Check if user exists in users table
+          const userCheck = await env.DB.prepare('SELECT 1 FROM users WHERE email = ?').bind(emailLower).first();
+          stats.user_exists = !!userCheck;
+
+          // Count tasks
+          const count = await env.DB.prepare('SELECT COUNT(*) as total FROM tasks WHERE user_email = ?').bind(emailLower).first();
+          stats.tasks = count?.total || 0;
         }
 
         return new Response(JSON.stringify({

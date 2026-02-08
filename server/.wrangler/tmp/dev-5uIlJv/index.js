@@ -86,10 +86,12 @@ var src_default = {
       }
       if (path === "/api/debug" && request.method === "GET") {
         const userEmail = request.headers.get("X-User-Email");
-        let stats = { tasks: null };
-        let recent_logins = [];
+        let stats = { tasks: null, user_exists: false };
         if (userEmail) {
-          const count = await env.DB.prepare("SELECT COUNT(*) as total FROM tasks WHERE user_email = ?").bind(userEmail).first();
+          const emailLower = userEmail.toLowerCase();
+          const userCheck = await env.DB.prepare("SELECT 1 FROM users WHERE email = ?").bind(emailLower).first();
+          stats.user_exists = !!userCheck;
+          const count = await env.DB.prepare("SELECT COUNT(*) as total FROM tasks WHERE user_email = ?").bind(emailLower).first();
           stats.tasks = count?.total || 0;
         }
         return new Response(JSON.stringify({
