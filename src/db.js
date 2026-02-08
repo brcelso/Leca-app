@@ -4,9 +4,9 @@ import Dexie from 'dexie';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787/api';
 
 // Local DB (Dexie) - cache for offline usage and performance
-export const db = new Dexie('LecaDB_v6'); // Incremented version for v6 (Enterprise)
+export const db = new Dexie('LecaDB_v7'); // Incremented version for v7 (User isolation)
 db.version(1).stores({
-    tasks: '++id, uuid, name, targetFreq, completions, createdAt, updatedAt',
+    tasks: '++id, uuid, userEmail, name, targetFreq, completions, createdAt, updatedAt',
     history: '++id, weekStart, score'
 });
 

@@ -11,7 +11,11 @@ const WEEK_DAYS_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
 function App() {
   // DB Queries
-  const tasks = useLiveQuery(() => db.tasks.toArray(), []) || [];
+  const tasks = useLiveQuery(() => {
+    const email = JSON.parse(localStorage.getItem('leca_user') || 'null')?.email?.toLowerCase();
+    if (!email) return [];
+    return db.tasks.where('userEmail').equals(email).toArray();
+  }, []) || [];
   const history = useLiveQuery(() => db.history.orderBy('weekStart').reverse().toArray(), []) || [];
 
   // SAFARI FIX: Safe date parsing helper
@@ -183,6 +187,7 @@ function App() {
           if (!local) {
             await db.tasks.add({
               uuid: r.uuid,
+              userEmail: user.email.toLowerCase(),
               name: r.name,
               targetFreq: r.target_freq,
               completions: completions,
@@ -291,6 +296,7 @@ function App() {
     } else {
       const newTask = {
         uuid: generateUUID(),
+        userEmail: user?.email?.toLowerCase() || '',
         name: taskName,
         targetFreq: parseInt(taskFreq),
         completions: [],
