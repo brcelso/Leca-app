@@ -52,8 +52,10 @@ export default {
 
       // 3. Login Endpoint
       if (path === '/api/login' && request.method === 'POST') {
-        const { email, name, picture } = await request.json();
+        let { email, name, picture } = await request.json();
         if (!email) return new Response('Email required', { status: 400, headers: corsHeaders });
+
+        email = email.toLowerCase(); // Normalize email
 
         await env.DB.prepare(`
           INSERT INTO users (email, name, picture, last_login)
@@ -62,7 +64,7 @@ export default {
             name = excluded.name,
             picture = excluded.picture,
             last_login = CURRENT_TIMESTAMP
-        `).bind(email, name, picture).run();
+        `).bind(email, name || null, picture || null).run();
 
         return new Response(JSON.stringify({ success: true }), {
           headers: { ...corsHeaders, 'content-type': 'application/json' }
