@@ -80,12 +80,13 @@ export default {
         if (!userEmail) {
           return new Response('Unauthorized - Missing X-User-Email header', { status: 401, headers: corsHeaders });
         }
+        const emailLower = userEmail.toLowerCase();
 
         // GET Tasks
         if (request.method === 'GET') {
           const { results } = await env.DB.prepare(
             'SELECT * FROM tasks WHERE user_email = ? ORDER BY created_at DESC'
-          ).bind(userEmail).all();
+          ).bind(emailLower).all();
           return new Response(JSON.stringify(results), {
             headers: { ...corsHeaders, 'content-type': 'application/json' }
           });
@@ -107,7 +108,7 @@ export default {
               completions = excluded.completions,
               updated_at = excluded.updated_at
           `).bind(
-            uuid, userEmail, name, targetFreq || 1,
+            uuid, emailLower, name, targetFreq || 1,
             JSON.stringify(completions || []),
             new Date().toISOString()
           ).run();
