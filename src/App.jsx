@@ -10,16 +10,6 @@ const DAYS_OF_WEEK = [0, 1, 2, 3, 4, 5, 6];
 const WEEK_DAYS_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
 function App() {
-  // DB Queries
-  const tasks = useLiveQuery(() => {
-    const email = user?.email?.toLowerCase();
-    if (!email) return [];
-    return db.tasks.where('userEmail').equals(email).toArray();
-  }, [user?.email]) || [];
-  const history = useLiveQuery(() => {
-    // Note: History is currently global locally, but we refresh it when user changes
-    return db.history.orderBy('weekStart').reverse().toArray();
-  }, [user?.email]) || [];
 
   // SAFARI FIX: Safe date parsing helper
   const safeDate = (dateStr) => {
@@ -33,6 +23,17 @@ function App() {
   };
 
   const [user, setUser] = useState(JSON.parse(localStorage.getItem('leca_user') || 'null'));
+
+  // DB Queries (Moved here to avoid ReferenceError with 'user' variable)
+  const tasks = useLiveQuery(() => {
+    const email = user?.email?.toLowerCase();
+    if (!email) return [];
+    return db.tasks.where('userEmail').equals(email).toArray();
+  }, [user?.email]) || [];
+  const history = useLiveQuery(() => {
+    // Note: History is currently global locally, but we refresh it when user changes
+    return db.history.orderBy('weekStart').reverse().toArray();
+  }, [user?.email]) || [];
   const [showModal, setShowModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
