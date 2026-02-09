@@ -470,7 +470,7 @@ function App() {
             <ShieldCheck size={18} />
           </div>
           <a
-            href={`${import.meta.env.VITE_API_URL}/debug`}
+            href={`${import.meta.env.VITE_API_URL}/debug${user ? '?email=' + encodeURIComponent(user.email) : ''}`}
             target="_blank"
             rel="noreferrer"
             className="btn-icon"

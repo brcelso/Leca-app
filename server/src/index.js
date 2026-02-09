@@ -26,8 +26,21 @@ export default {
 
       // 2. Debug Endpoint (Secured)
       if (path === '/api/debug' && request.method === 'GET') {
-        const userEmail = request.headers.get('X-User-Email');
-        let stats = { tasks: null, user_exists: false };
+        const userEmail = request.headers.get('X-User-Email') || url.searchParams.get('email');
+        let stats = {
+          tasks: null,
+          user_exists: false,
+          global: {
+            total_tasks: 0,
+            total_users: 0
+          }
+        };
+
+        // Get Global Stats (to verify DB is alive even without login)
+        const globalTasks = await env.DB.prepare('SELECT COUNT(*) as total FROM tasks').first();
+        const globalUsers = await env.DB.prepare('SELECT COUNT(*) as total FROM users').first();
+        stats.global.total_tasks = globalTasks?.total || 0;
+        stats.global.total_users = globalUsers?.total || 0;
 
         if (userEmail) {
           const emailLower = userEmail.toLowerCase();
@@ -44,6 +57,7 @@ export default {
         return new Response(JSON.stringify({
           status: 'online',
           database: 'connected',
+          requested_email: userEmail || 'none',
           stats: stats,
           recent_logins: [], // Privacy: Never leak other users
           server_time: new Date().toISOString()

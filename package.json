@@ -8,6 +8,8 @@
     "dev:server": "cd server && npx wrangler dev --local --persist",
     "dev:full": "npm run dev & npm run dev:server",
     "db:init": "cd server && npx wrangler d1 execute leca-db --local --file=schema.sql",
+    "deploy:server": "cd server && npx wrangler deploy",
+    "deploy:full": "git add . && git commit -m \"Fix API debug and update frontend\" && git push && npm run deploy:server",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
