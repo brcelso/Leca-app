@@ -12,11 +12,14 @@ const WEEK_DAYS_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 function App() {
   // DB Queries
   const tasks = useLiveQuery(() => {
-    const email = JSON.parse(localStorage.getItem('leca_user') || 'null')?.email?.toLowerCase();
+    const email = user?.email?.toLowerCase();
     if (!email) return [];
     return db.tasks.where('userEmail').equals(email).toArray();
-  }, []) || [];
-  const history = useLiveQuery(() => db.history.orderBy('weekStart').reverse().toArray(), []) || [];
+  }, [user?.email]) || [];
+  const history = useLiveQuery(() => {
+    // Note: History is currently global locally, but we refresh it when user changes
+    return db.history.orderBy('weekStart').reverse().toArray();
+  }, [user?.email]) || [];
 
   // SAFARI FIX: Safe date parsing helper
   const safeDate = (dateStr) => {
