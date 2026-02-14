@@ -247,6 +247,9 @@ function App() {
 
     const init = async () => {
       await migrateData();
+      if (user?.email && user?.token) {
+        runDiagnostics(user.email, user.token);
+      }
       await sync();
     };
 

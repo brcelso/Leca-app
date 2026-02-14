@@ -198,7 +198,19 @@ export default {
 
       // 3.2. AbacatePay Webhook Endpoint
       if (path === '/api/webhook/abacate' && request.method === 'POST') {
-        const body = await request.json();
+        let body;
+        try {
+          const rawHeader = request.headers.get('content-type');
+          body = await request.json();
+          console.log('[AbacatePay Webhook Received]', JSON.stringify(body));
+        } catch (e) {
+          console.error('[AbacatePay Webhook Body Parse Error]', e.message);
+          return new Response('Invalid JSON', { status: 400, headers: corsHeaders });
+        }
+
+        if (!body || !body.event) {
+          return new Response('Missing Event', { status: 400, headers: corsHeaders });
+        }
 
         // Em produção, você deve verificar a assinatura do webhook aqui
         // No modo dev, vamos apenas processar o evento de billing.paid
@@ -206,7 +218,8 @@ export default {
           // Robust email extraction: check multiple possible paths
           const email = body.data?.customer?.email ||
             body.data?.customer?.metadata?.email ||
-            body.data?.email;
+            body.data?.email ||
+            body.data?.customerMetadata?.email; // Safe check
 
           if (email) {
             const emailLower = email.toLowerCase();
