@@ -68,9 +68,10 @@ export default {
         stats.global.total_users = 0;
 
         if (verifiedEmail) {
-          const userRow = await env.DB.prepare('SELECT is_premium FROM users WHERE email = ?').bind(verifiedEmail).first();
+          const userRow = await env.DB.prepare('SELECT is_premium, created_at FROM users WHERE email = ?').bind(verifiedEmail).first();
           stats.user_exists = !!userRow;
           stats.is_premium = userRow?.is_premium === 1;
+          stats.created_at = userRow?.created_at;
           const count = await env.DB.prepare('SELECT COUNT(*) as total FROM tasks WHERE user_email = ?').bind(verifiedEmail).first();
           stats.tasks = count?.total || 0;
           // For compatibility, mirror user stats to 'global' structure so frontend shows something useful
@@ -109,7 +110,12 @@ export default {
             last_login = CURRENT_TIMESTAMP
         `).bind(emailLower, name || null, picture || null).run();
 
-        return new Response(JSON.stringify({ success: true }), {
+        const userRow = await env.DB.prepare('SELECT created_at FROM users WHERE email = ?').bind(emailLower).first();
+
+        return new Response(JSON.stringify({
+          success: true,
+          created_at: userRow?.created_at
+        }), {
           headers: { ...corsHeaders, 'content-type': 'application/json' }
         });
       }

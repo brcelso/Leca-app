@@ -79,6 +79,7 @@ function App() {
         // Use the new secure flag 'user_exists' from backend
         const isInCloud = data.stats?.user_exists === true;
         const isPremium = data.stats?.is_premium === true;
+        const createdAt = data.stats?.created_at;
 
         setDiagnostics(prev => ({
           ...prev,
@@ -88,9 +89,13 @@ function App() {
           isPremium: isPremium
         }));
 
-        // Update user state if premium changed
-        if (user && user.isPremium !== isPremium) {
-          const updatedUser = { ...user, isPremium };
+        // Update user state if premium changed or createdAt missing
+        if (user && (user.isPremium !== isPremium || (createdAt && !user.createdAt))) {
+          const updatedUser = {
+            ...user,
+            isPremium,
+            createdAt: createdAt || user.createdAt
+          };
           setUser(updatedUser);
           localStorage.setItem('leca_user', JSON.stringify(updatedUser));
         }
@@ -306,13 +311,18 @@ function App() {
       const allTasks = await db.tasks.toArray();
       if (allTasks.length === 0) return;
 
-      // Find earliest task date to limit history
-      const earliestTaskDate = allTasks.reduce((min, t) => {
-        const d = safeDate(t.createdAt || t.updatedAt);
-        return d < min ? d : min;
-      }, new Date());
+      // Determine history start date: User Creation > First Task > Today
+      let limitDate;
+      if (user?.createdAt) {
+        limitDate = safeDate(user.createdAt);
+      } else {
+        limitDate = allTasks.reduce((min, t) => {
+          const d = safeDate(t.createdAt || t.updatedAt);
+          return d < min ? d : min;
+        }, new Date());
+      }
 
-      const earliestWeekStart = startOfWeek(earliestTaskDate, { weekStartsOn: 0 });
+      const earliestWeekStart = startOfWeek(limitDate, { weekStartsOn: 0 });
       const earliestWeekStr = format(earliestWeekStart, 'yyyy-MM-dd');
 
       // cleanup: Remove history before the first task (fixes "whole year" issue)
