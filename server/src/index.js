@@ -134,7 +134,7 @@ export default {
             frequency: 'ONE_TIME',
             methods: ['PIX'],
             products: [{
-              externalId: 'leca_pro_lifetime',
+              externalId: 'leca_pro_vitalicio_v2', // Changed to force fresh session
               name: 'Leca Pro - Acesso Vitalício',
               quantity: 1,
               price: 1990 // R$ 19,90 (Cents)
