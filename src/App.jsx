@@ -384,7 +384,12 @@ function App() {
       if (res.ok && data.url) {
         window.location.href = data.url;
       } else {
-        const msg = data.error || data.message || 'Erro desconhecido';
+        let msg = data.error || data.message || 'Erro desconhecido';
+        if (data.details) {
+          // If AbacatePay sent detailed validation errors (common for 422)
+          const details = typeof data.details === 'string' ? data.details : JSON.stringify(data.details);
+          msg += ` - Detalhes: ${details}`;
+        }
         alert(`Erro no Checkout (${res.status}): ${msg}`);
         console.error('Checkout error details:', data);
       }
