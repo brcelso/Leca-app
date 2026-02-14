@@ -63,8 +63,9 @@ export default {
         stats.global.total_users = globalUsers?.total || 0;
 
         if (verifiedEmail) {
-          const userCheck = await env.DB.prepare('SELECT 1 FROM users WHERE email = ?').bind(verifiedEmail).first();
-          stats.user_exists = !!userCheck;
+          const userRow = await env.DB.prepare('SELECT is_premium FROM users WHERE email = ?').bind(verifiedEmail).first();
+          stats.user_exists = !!userRow;
+          stats.is_premium = userRow?.is_premium === 1;
           const count = await env.DB.prepare('SELECT COUNT(*) as total FROM tasks WHERE user_email = ?').bind(verifiedEmail).first();
           stats.tasks = count?.total || 0;
         }
@@ -103,6 +104,74 @@ export default {
         return new Response(JSON.stringify({ success: true }), {
           headers: { ...corsHeaders, 'content-type': 'application/json' }
         });
+      }
+
+      // 3.1. AbacatePay Checkout Endpoint
+      if (path === '/api/checkout' && request.method === 'POST') {
+        const verifiedEmail = await verifyGoogleToken(token);
+        if (!verifiedEmail) {
+          return new Response('Unauthorized', { status: 401, headers: corsHeaders });
+        }
+
+        const apiKey = env.ABACATE_PAY_API_KEY;
+        if (!apiKey) {
+          return new Response('AbacatePay API Key not configured', { status: 500, headers: corsHeaders });
+        }
+
+        // Create Billing in AbacatePay
+        const abacateRes = await fetch('https://api.abacatepay.com/v1/billing/create', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            frequency: 'ONE_TIME',
+            methods: ['PIX'],
+            products: [{
+              externalId: 'leca_pro_lifetime',
+              name: 'Leca Pro - Acesso Vitalício',
+              quantity: 1,
+              unitPrice: 1990 // R$ 19,90
+            }],
+            returnUrl: 'https://leca.celsosilva.com.br/',
+            completionUrl: 'https://leca.celsosilva.com.br/',
+            customer: {
+              email: verifiedEmail
+            }
+          })
+        });
+
+        const abacateData = await abacateRes.json();
+        if (!abacateRes.ok) {
+          return new Response(JSON.stringify({ error: 'AbacatePay Error', details: abacateData }), {
+            status: abacateRes.status,
+            headers: corsHeaders
+          });
+        }
+
+        return new Response(JSON.stringify({ url: abacateData.data.url }), {
+          headers: { ...corsHeaders, 'content-type': 'application/json' }
+        });
+      }
+
+      // 3.2. AbacatePay Webhook Endpoint
+      if (path === '/api/webhook/abacate' && request.method === 'POST') {
+        const body = await request.json();
+
+        // Em produção, você deve verificar a assinatura do webhook aqui
+        // No modo dev, vamos apenas processar o evento de billing.paid
+        if (body.event === 'billing.paid') {
+          const email = body.data?.customer?.email;
+          if (email) {
+            await env.DB.prepare('UPDATE users SET is_premium = 1 WHERE email = ?')
+              .bind(email.toLowerCase())
+              .run();
+            console.log(`[AbacatePay] User ${email} upgraded to Premium!`);
+          }
+        }
+
+        return new Response('OK', { headers: corsHeaders });
       }
 
       // 4. Tasks Endpoints

@@ -49,6 +49,7 @@ function App() {
     health: 'pending',
     db: 'pending',
     userInCloud: 'pending',
+    isPremium: false,
     count: 0
   });
 
@@ -76,12 +77,22 @@ function App() {
         const data = await dRes.json();
         // Use the new secure flag 'user_exists' from backend
         const isInCloud = data.stats?.user_exists === true;
+        const isPremium = data.stats?.is_premium === true;
+
         setDiagnostics(prev => ({
           ...prev,
           db: 'ok',
           count: data.stats?.tasks || 0,
-          userInCloud: isInCloud ? 'ok' : 'fail'
+          userInCloud: isInCloud ? 'ok' : 'fail',
+          isPremium: isPremium
         }));
+
+        // Update user state if premium changed
+        if (user && user.isPremium !== isPremium) {
+          const updatedUser = { ...user, isPremium };
+          setUser(updatedUser);
+          localStorage.setItem('leca_user', JSON.stringify(updatedUser));
+        }
       } else {
         setDiagnostics(prev => ({ ...prev, db: 'fail', userInCloud: 'fail' }));
       }
@@ -359,6 +370,30 @@ function App() {
     }
   };
 
+  const handleCheckout = async () => {
+    if (!user?.token) return;
+    setIsSyncing(true);
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8787/api'}/checkout`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${user.token}`
+        }
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert('Erro ao gerar checkout. Tente novamente.');
+      }
+    } catch (e) {
+      console.error('Checkout failed', e);
+      alert('Erro de conexão com o servidor.');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const openModal = (task = null) => {
     if (task) {
       setEditingTask(task);
@@ -426,6 +461,14 @@ function App() {
                   </div>
                 </div>
 
+                <div className="troubleshoot-check">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                    {diagnostics.userInCloud === 'loading' ? <RefreshCw className="spin" size={18} /> :
+                      diagnostics.isPremium ? <CheckCircle2 size={18} color="var(--success)" /> : <XCircle size={18} color="var(--text-muted)" />}
+                    <span>Status Premium (PRO)</span>
+                  </div>
+                </div>
+
                 <div style={{ background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px', marginTop: '1rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
                     <span>Total de Tarefas no Banco:</span>
@@ -469,11 +512,19 @@ function App() {
             {user.picture ? <img src={user.picture} alt={user.name} /> : <User size={20} />}
           </div>
           <div>
-            <h1 className="fade-in">Leca</h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <h1 className="fade-in">Leca</h1>
+              {user.isPremium && <span style={{ background: 'var(--primary)', color: 'white', fontSize: '0.6rem', padding: '2px 6px', borderRadius: '4px', fontWeight: '900', letterSpacing: '0.5px' }}>PRO</span>}
+            </div>
             <p style={{ color: 'var(--success)', fontSize: '0.75rem', fontWeight: 600 }}>{user.name} (Cloud Active)</p>
           </div>
         </div>
         <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
+          {!user.isPremium && (
+            <button onClick={handleCheckout} className="btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', background: 'linear-gradient(90deg, #f59e0b, #d97706)' }}>
+              👑 Go Premium
+            </button>
+          )}
           <div
             className={`sync-status active ${isSyncing ? 'syncing' : ''}`}
             onClick={async () => {

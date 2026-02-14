@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT PRIMARY KEY,
   name TEXT,
   picture TEXT,
+  is_premium INTEGER DEFAULT 0,
   last_login TEXT DEFAULT CURRENT_TIMESTAMP,
   created_at DEFAULT CURRENT_TIMESTAMP
 );
