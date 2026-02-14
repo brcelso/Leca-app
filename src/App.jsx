@@ -44,6 +44,7 @@ function App() {
   const [viewMode, setViewMode] = useState(window.innerWidth < 768 ? 'cards' : 'table');
   const [debugOverlay, setDebugOverlay] = useState(null);
   const [showTroubleshooter, setShowTroubleshooter] = useState(false);
+  const [selectedWeek, setSelectedWeek] = useState(null); // PRO Feature: Time Travel
   const [diagnostics, setDiagnostics] = useState({
     url: import.meta.env.VITE_API_URL,
     health: 'pending',
@@ -604,26 +605,59 @@ function App() {
         </div>
       </header>
 
-      {showHistory && (
-        <div className="glass-card fade-in" style={{ marginBottom: '2rem', padding: '1.5rem' }}>
-          <h2 style={{ marginBottom: '1rem', fontSize: '1.2rem', color: 'var(--primary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            Histórico
-            {!user?.isPremium && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>(Limitado para usuários Free)</span>}
-          </h2>
-          <div className="stats-grid">
-            {history.length === 0 ? <p style={{ color: 'var(--text-muted)', textAlign: 'center', gridColumn: '1/-1' }}>Vazio.</p> :
-              (user?.isPremium ? history : history.slice(0, 1)).map((h) => (
-                <div key={h.id} className="glass-card" style={{ padding: '1rem', background: 'rgba(255,255,255,0.05)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>Semana {format(safeDate(h.weekStart), 'dd/MM')}</span>
-                    <span style={{ color: 'var(--success)', fontWeight: 700 }}>{h.score}%</span>
-                  </div>
-                  <div className="progress-bar-container"><div className="progress-bar" style={{ width: `${h.score}%` }}></div></div>
-                </div>
-              ))}
-          </div>
+      {selectedWeek && (
+        <div className="glass-card fade-in" style={{ marginBottom: '1.5rem', padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(59, 130, 246, 0.15)', border: '1px solid var(--primary)' }}>
+          <span style={{ fontWeight: 600, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <History size={18} /> Visualizando Semana de {format(selectedWeek, 'dd/MM/yyyy')}
+          </span>
+          <button
+            className="btn-primary"
+            style={{ padding: '0.3rem 0.8rem', fontSize: '0.8rem' }}
+            onClick={() => setSelectedWeek(null)}
+          >
+            Voltar para Hoje
+          </button>
         </div>
-      )}
+      )
+      }
+
+      {
+        showHistory && (
+          <div className="glass-card fade-in" style={{ marginBottom: '2rem', padding: '1.5rem' }}>
+            <h2 style={{ marginBottom: '1rem', fontSize: '1.2rem', color: 'var(--primary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              Histórico
+              {!user?.isPremium && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>(Limitado para usuários Free)</span>}
+            </h2>
+            <div className="stats-grid">
+              {history.length === 0 ? <p style={{ color: 'var(--text-muted)', textAlign: 'center', gridColumn: '1/-1' }}>Vazio.</p> :
+                (user?.isPremium ? history : history.slice(0, 1)).map((h) => (
+                  <div
+                    key={h.id}
+                    className="glass-card"
+                    style={{
+                      padding: '1rem',
+                      background: selectedWeek && selectedWeek.getTime() === safeDate(h.weekStart).getTime() ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.05)',
+                      cursor: user?.isPremium ? 'pointer' : 'default',
+                      border: selectedWeek && selectedWeek.getTime() === safeDate(h.weekStart).getTime() ? '1px solid var(--primary)' : 'none'
+                    }}
+                    onClick={() => {
+                      if (user?.isPremium) {
+                        setSelectedWeek(safeDate(h.weekStart));
+                        setShowHistory(false);
+                      }
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>Semana {format(safeDate(h.weekStart), 'dd/MM')}</span>
+                      <span style={{ color: 'var(--success)', fontWeight: 700 }}>{h.score}%</span>
+                    </div>
+                    <div className="progress-bar-container"><div className="progress-bar" style={{ width: `${h.score}%` }}></div></div>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )
+      }
 
       <div className="stats-grid">
         <div className="glass-card stat-card fade-in">
@@ -710,123 +744,129 @@ function App() {
         )}
       </div>
 
-      {showTroubleshooter && (
-        <div className="modal-overlay" style={{ zIndex: 10000 }}>
-          <div className="glass-card fade-in" style={{ maxWidth: '450px', padding: '2rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Activity className="text-primary" size={24} />
-                <h2 style={{ margin: 0 }}>Cloud Connection Center</h2>
-              </div>
-              <button onClick={() => setShowTroubleshooter(false)} className="btn-icon-tiny"><X size={24} /></button>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div className="troubleshoot-item">
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Endereço do Servidor</span>
-                  <code style={{ fontSize: '0.7rem', opacity: 0.6 }}>{diagnostics.url?.replace('https://', '')}</code>
+      {
+        showTroubleshooter && (
+          <div className="modal-overlay" style={{ zIndex: 10000 }}>
+            <div className="glass-card fade-in" style={{ maxWidth: '450px', padding: '2rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Activity className="text-primary" size={24} />
+                  <h2 style={{ margin: 0 }}>Cloud Connection Center</h2>
                 </div>
+                <button onClick={() => setShowTroubleshooter(false)} className="btn-icon-tiny"><X size={24} /></button>
               </div>
 
-              <div className="troubleshoot-check">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
-                  {diagnostics.health === 'loading' ? <RefreshCw className="spin" size={18} /> :
-                    diagnostics.health === 'ok' ? <CheckCircle2 size={18} color="var(--success)" /> : <XCircle size={18} color="var(--danger)" />}
-                  <span>Status do Servidor (Health)</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div className="troubleshoot-item">
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Endereço do Servidor</span>
+                    <code style={{ fontSize: '0.7rem', opacity: 0.6 }}>{diagnostics.url?.replace('https://', '')}</code>
+                  </div>
                 </div>
-              </div>
 
-              <div className="troubleshoot-check">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
-                  {diagnostics.db === 'loading' ? <RefreshCw className="spin" size={18} /> :
-                    diagnostics.db === 'ok' ? <CheckCircle2 size={18} color="var(--success)" /> : <XCircle size={18} color="var(--danger)" />}
-                  <span>Conexão com Banco de Dados (D1)</span>
+                <div className="troubleshoot-check">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                    {diagnostics.health === 'loading' ? <RefreshCw className="spin" size={18} /> :
+                      diagnostics.health === 'ok' ? <CheckCircle2 size={18} color="var(--success)" /> : <XCircle size={18} color="var(--danger)" />}
+                    <span>Status do Servidor (Health)</span>
+                  </div>
                 </div>
-              </div>
 
-              <div className="troubleshoot-check">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
-                  {diagnostics.userInCloud === 'loading' ? <RefreshCw className="spin" size={18} /> :
-                    diagnostics.userInCloud === 'ok' ? <CheckCircle2 size={18} color="var(--success)" /> : <XCircle size={18} color="var(--danger)" />}
-                  <span>Seu Login está salvo na Nuvem?</span>
+                <div className="troubleshoot-check">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                    {diagnostics.db === 'loading' ? <RefreshCw className="spin" size={18} /> :
+                      diagnostics.db === 'ok' ? <CheckCircle2 size={18} color="var(--success)" /> : <XCircle size={18} color="var(--danger)" />}
+                    <span>Conexão com Banco de Dados (D1)</span>
+                  </div>
                 </div>
-              </div>
 
-              <div style={{ background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px', marginTop: '1rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                  <span>Total de Tarefas no Banco:</span>
-                  <span style={{ fontWeight: 'bold', color: 'var(--primary)' }}>{diagnostics.count}</span>
+                <div className="troubleshoot-check">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                    {diagnostics.userInCloud === 'loading' ? <RefreshCw className="spin" size={18} /> :
+                      diagnostics.userInCloud === 'ok' ? <CheckCircle2 size={18} color="var(--success)" /> : <XCircle size={18} color="var(--danger)" />}
+                    <span>Seu Login está salvo na Nuvem?</span>
+                  </div>
                 </div>
-              </div>
 
-              <button className="btn-primary" onClick={() => runDiagnostics()} style={{ marginTop: '1rem' }}>
-                <RefreshCw size={16} style={{ marginRight: '0.5rem' }} /> Re-testar Agora
-              </button>
+                <div style={{ background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px', marginTop: '1rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                    <span>Total de Tarefas no Banco:</span>
+                    <span style={{ fontWeight: 'bold', color: 'var(--primary)' }}>{diagnostics.count}</span>
+                  </div>
+                </div>
+
+                <button className="btn-primary" onClick={() => runDiagnostics()} style={{ marginTop: '1rem' }}>
+                  <RefreshCw size={16} style={{ marginRight: '0.5rem' }} /> Re-testar Agora
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
-      {debugOverlay && (
-        <div className="modal-overlay" style={{ zIndex: 9999, background: 'rgba(0,0,0,0.8)' }}>
-          <div className="glass-card fade-in" style={{ maxWidth: '400px', padding: '2rem', textAlign: 'left', border: '1px solid var(--success)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--success)', marginBottom: '1rem' }}>
-              <ShieldCheck size={24} />
-              <h3 style={{ margin: 0 }}>Login Verificado na Nuvem!</h3>
+      {
+        debugOverlay && (
+          <div className="modal-overlay" style={{ zIndex: 9999, background: 'rgba(0,0,0,0.8)' }}>
+            <div className="glass-card fade-in" style={{ maxWidth: '400px', padding: '2rem', textAlign: 'left', border: '1px solid var(--success)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--success)', marginBottom: '1rem' }}>
+                <ShieldCheck size={24} />
+                <h3 style={{ margin: 0 }}>Login Verificado na Nuvem!</h3>
+              </div>
+              <p style={{ fontSize: '0.8rem', opacity: 0.8, marginBottom: '1rem' }}>Validando persistência real no Cloudflare D1...</p>
+              <pre style={{ background: 'rgba(0,0,0,0.3)', padding: '1rem', borderRadius: '8px', fontSize: '0.7rem', overflow: 'auto', maxHeight: '200px', color: '#a0aec0' }}>
+                {JSON.stringify(debugOverlay, null, 2)}
+              </pre>
+              <button className="btn-primary" style={{ marginTop: '1.5rem', width: '100%' }} onClick={() => setDebugOverlay(null)}>Entendido</button>
             </div>
-            <p style={{ fontSize: '0.8rem', opacity: 0.8, marginBottom: '1rem' }}>Validando persistência real no Cloudflare D1...</p>
-            <pre style={{ background: 'rgba(0,0,0,0.3)', padding: '1rem', borderRadius: '8px', fontSize: '0.7rem', overflow: 'auto', maxHeight: '200px', color: '#a0aec0' }}>
-              {JSON.stringify(debugOverlay, null, 2)}
-            </pre>
-            <button className="btn-primary" style={{ marginTop: '1.5rem', width: '100%' }} onClick={() => setDebugOverlay(null)}>Entendido</button>
           </div>
-        </div>
-      )}
+        )
+      }
 
-      {showModal && (
-        <div className="modal-overlay">
-          <div className="glass-card modal-content fade-in">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <h2>{editingTask ? 'Editar' : 'Novo Hábito'}</h2>
-              <button onClick={closeModal} className="btn-icon-tiny"><X size={24} /></button>
+      {
+        showModal && (
+          <div className="modal-overlay">
+            <div className="glass-card modal-content fade-in">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <h2>{editingTask ? 'Editar' : 'Novo Hábito'}</h2>
+                <button onClick={closeModal} className="btn-icon-tiny"><X size={24} /></button>
+              </div>
+              <form onSubmit={handleSubmit}>
+                <label>Nome do Hábito</label>
+                <input type="text" value={taskName} onChange={(e) => setTaskName(e.target.value)} autoFocus />
+                <label>Frequência Semanal</label>
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+                  {[1, 2, 3, 4, 5, 6, 7].map(n => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setTaskFreq(n)}
+                      style={{
+                        flex: 1,
+                        minWidth: '40px',
+                        padding: '0.8rem 0',
+                        borderRadius: '8px',
+                        background: taskFreq === n ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
+                        border: taskFreq === n ? '1px solid var(--primary)' : '1px solid var(--border)',
+                        color: taskFreq === n ? 'white' : 'var(--text-muted)',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      {n}x
+                    </button>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                  <button type="button" className="btn-primary" style={{ background: 'transparent', border: '1px solid var(--border)', flex: 1 }} onClick={closeModal}>Cancelar</button>
+                  <button type="submit" className="btn-primary" style={{ flex: 2 }}>Salvar</button>
+                </div>
+              </form>
             </div>
-            <form onSubmit={handleSubmit}>
-              <label>Nome do Hábito</label>
-              <input type="text" value={taskName} onChange={(e) => setTaskName(e.target.value)} autoFocus />
-              <label>Frequência Semanal</label>
-              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-                {[1, 2, 3, 4, 5, 6, 7].map(n => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setTaskFreq(n)}
-                    style={{
-                      flex: 1,
-                      minWidth: '40px',
-                      padding: '0.8rem 0',
-                      borderRadius: '8px',
-                      background: taskFreq === n ? 'var(--primary)' : 'rgba(255,255,255,0.05)',
-                      border: taskFreq === n ? '1px solid var(--primary)' : '1px solid var(--border)',
-                      color: taskFreq === n ? 'white' : 'var(--text-muted)',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      transition: 'all 0.2s'
-                    }}
-                  >
-                    {n}x
-                  </button>
-                ))}
-              </div>
-              <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-                <button type="button" className="btn-primary" style={{ background: 'transparent', border: '1px solid var(--border)', flex: 1 }} onClick={closeModal}>Cancelar</button>
-                <button type="submit" className="btn-primary" style={{ flex: 2 }}>Salvar</button>
-              </div>
-            </form>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 }
 
