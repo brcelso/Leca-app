@@ -596,6 +596,9 @@ function App() {
           <button className="btn-icon" onClick={() => setShowHistory(!showHistory)} title="Histórico">
             <History size={22} />
           </button>
+          <button className="btn-icon" onClick={() => window.location.reload()} title="Recarregar">
+            <RefreshCw size={22} />
+          </button>
           <button className="btn-primary" onClick={() => openModal()} style={{ marginLeft: '0.4rem' }}>
             <Plus size={20} /> <span className="hide-mobile">Novo</span>
           </button>
