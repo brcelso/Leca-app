@@ -329,6 +329,7 @@ function App() {
       await db.history.where('weekStart').below(earliestWeekStr).delete();
 
       // Rebuild history up to the first task's week or user creation (max 52 weeks back)
+      const updates = [];
       for (let i = 1; i <= 52; i++) {
         const pastWeekStart = startOfWeek(subWeeks(today, i), { weekStartsOn: 0 });
 
@@ -336,11 +337,13 @@ function App() {
         if (pastWeekStart.getTime() < earliestWeekStart.getTime()) break;
 
         const pastWeekStr = format(pastWeekStart, 'yyyy-MM-dd');
-
         const score = calculateScore(allTasks, pastWeekStr);
 
-        // Always update to ensure consistency across devices
-        await db.history.put({ weekStart: pastWeekStr, score });
+        updates.push({ weekStart: pastWeekStr, score });
+      }
+
+      if (updates.length > 0) {
+        await db.history.bulkPut(updates);
       }
     };
     // Debounce regeneration slightly to run after sync
