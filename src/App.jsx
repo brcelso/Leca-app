@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Plus, Check, Trash2, Edit2, Calendar, Target, TrendingUp, History, X, Save, RefreshCw, Settings, ShieldCheck, AlertCircle, LayoutGrid, List, Info, Database, Cloud, CloudOff, LogOut, User, Activity, CheckCircle2, XCircle } from 'lucide-react';
-import { format, startOfWeek, addDays, parseISO } from 'date-fns';
+import { format, startOfWeek, addDays, parseISO, subWeeks } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { db, migrateData, syncTaskToCloud, syncAllToCloud, fetchAllTasks, generateUUID } from './db';
 
@@ -288,17 +288,40 @@ function App() {
         const allTasks = await db.tasks.toArray();
         if (allTasks.length > 0) {
           const score = calculateScore(allTasks, lastWeekStart);
-          await db.history.add({ weekStart: lastWeekStart, score });
+          await db.history.put({ weekStart: lastWeekStart, score }); // Use put to upsert
           for (const task of allTasks) {
-            const updated = { completions: [], updatedAt: new Date().toISOString() };
-            await db.tasks.update(task.id, updated);
-            if (user) syncTaskToCloud({ ...task, ...updated }, user.email);
+            // Note: We don't clear completions anymore to allow history rebuilding
+            // const updated = { completions: [], updatedAt: new Date().toISOString() };
+            // await db.tasks.update(task.id, updated);
+            // if (user) syncTaskToCloud({ ...task, ...updated }, user.email);
           }
         }
       }
       localStorage.setItem('leca_last_week_start_v6', currentWeekStartStr);
     };
     handleWeekTransition();
+
+    // Auto-Regenerate History on Load (Fix for empty mobile history)
+    const regenerateHistory = async () => {
+      const allTasks = await db.tasks.toArray();
+      if (allTasks.length === 0) return;
+
+      // Rebuild last 12 weeks of history
+      for (let i = 1; i <= 12; i++) {
+        const pastWeekStart = startOfWeek(subWeeks(today, i), { weekStartsOn: 0 });
+        const pastWeekStr = format(pastWeekStart, 'yyyy-MM-dd');
+
+        const score = calculateScore(allTasks, pastWeekStr);
+        // Only add if not exists (or update if we want to force consistency)
+        const existing = await db.history.where('weekStart').equals(pastWeekStr).first();
+        if (!existing || existing.score !== score) {
+          await db.history.put({ weekStart: pastWeekStr, score });
+        }
+      }
+    };
+    // Debounce regeneration slightly to run after sync
+    const timer = setTimeout(regenerateHistory, 2000);
+    return () => clearTimeout(timer);
   }, [currentWeekStartStr, user]);
 
   const logout = () => {
