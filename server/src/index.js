@@ -142,10 +142,9 @@ export default {
             returnUrl: 'https://leca.celsosilva.com.br/',
             completionUrl: 'https://leca.celsosilva.com.br/',
             customer: {
-              name: userName,
               email: verifiedEmail,
-              taxId: '36713044808', // Provided by user
-              cellphone: '11972509876'
+              name: userName
+              // cellphone and taxId removed so AbacatePay uses existing or asks user
             }
           })
         });
