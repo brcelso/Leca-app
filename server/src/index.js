@@ -273,22 +273,30 @@ export default {
         // POST Tasks (Upsert)
         if (request.method === 'POST') {
           const body = await request.json();
-          const { uuid, name, targetFreq, completions } = body;
+          const { uuid, name, targetFreq, completions, createdAt } = body;
 
           if (!uuid || !name) return new Response('Missing required fields', { status: 400, headers: corsHeaders });
 
+          const now = new Date().toISOString();
+          const taskCreatedAt = createdAt || now;
+
           await env.DB.prepare(`
-            INSERT INTO tasks (uuid, user_email, name, target_freq, completions, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO tasks (uuid, user_email, name, target_freq, completions, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(uuid) DO UPDATE SET
               name = excluded.name,
               target_freq = excluded.target_freq,
               completions = excluded.completions,
+              created_at = CASE 
+                WHEN excluded.created_at < tasks.created_at THEN excluded.created_at 
+                ELSE tasks.created_at 
+              END,
               updated_at = excluded.updated_at
           `).bind(
             uuid, emailLower, name, targetFreq || 1,
             JSON.stringify(completions || []),
-            new Date().toISOString()
+            taskCreatedAt,
+            now
           ).run();
 
           return new Response('OK', { headers: corsHeaders });

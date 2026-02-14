@@ -44,6 +44,7 @@ export const syncTaskToCloud = async (task, userEmail, token) => {
                 name: task.name,
                 targetFreq: task.targetFreq,
                 completions: task.completions || [],
+                createdAt: task.createdAt, // Preserving original creation date
                 updatedAt: new Date().toISOString()
             })
         });
