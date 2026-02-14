@@ -139,8 +139,8 @@ export default {
               quantity: 1,
               price: 1990 // R$ 19,90 (Cents)
             }],
-            returnUrl: `https://leca.celsosilva.com.br/?auth_token=${token}`,
-            completionUrl: `https://leca.celsosilva.com.br/?auth_token=${token}&payment_success=true`,
+            returnUrl: `https://brcelso.github.io/Leca-app/?auth_token=${token}`,
+            completionUrl: `https://brcelso.github.io/Leca-app/?auth_token=${token}&payment_success=true`,
             customer: {
               email: verifiedEmail,
               name: userName, // Removido o "(Leca)" para bater com o teste
