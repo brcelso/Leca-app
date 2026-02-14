@@ -247,9 +247,30 @@ function App() {
 
     const init = async () => {
       await migrateData();
-      if (user?.email && user?.token) {
+
+      // Handle return from checkout
+      const urlParams = new URLSearchParams(window.location.search);
+      const authToken = urlParams.get('auth_token');
+      const isSuccess = urlParams.get('payment_success') === 'true';
+
+      if (authToken) {
+        // Find existing user or create shell
+        const saved = localStorage.getItem('leca_user');
+        const currentUser = saved ? JSON.parse(saved) : {};
+        const updatedUser = { ...currentUser, token: authToken };
+
+        setUser(updatedUser);
+        localStorage.setItem('leca_user', JSON.stringify(updatedUser));
+
+        if (isSuccess) {
+          // Clean URL
+          window.history.replaceState({}, document.title, window.location.pathname);
+          runDiagnostics(updatedUser.email, authToken);
+        }
+      } else if (user?.email && user?.token) {
         runDiagnostics(user.email, user.token);
       }
+
       await sync();
     };
 
