@@ -203,15 +203,19 @@ export default {
         // Em produção, você deve verificar a assinatura do webhook aqui
         // No modo dev, vamos apenas processar o evento de billing.paid
         if (body.event === 'billing.paid') {
-          // No AbacatePay, o email fica dentro de customer.metadata
-          const email = body.data?.customer?.metadata?.email || body.data?.customer?.email;
+          // Robust email extraction: check multiple possible paths
+          const email = body.data?.customer?.email ||
+            body.data?.customer?.metadata?.email ||
+            body.data?.email;
+
           if (email) {
+            const emailLower = email.toLowerCase();
             await env.DB.prepare('UPDATE users SET is_premium = 1 WHERE email = ?')
-              .bind(email.toLowerCase())
+              .bind(emailLower)
               .run();
-            console.log(`[AbacatePay] User ${email} successfully upgraded to Premium via Webhook!`);
+            console.log(`[AbacatePay] Webhook Success: ${emailLower} is now Premium.`);
           } else {
-            console.warn('[AbacatePay] Webhook received but no email found in customer data', JSON.stringify(body.data?.customer));
+            console.error('[AbacatePay] Webhook Error: No email found in payload', JSON.stringify(body));
           }
         }
 
