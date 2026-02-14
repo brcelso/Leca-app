@@ -347,9 +347,9 @@ function App() {
       }
     };
     // Debounce regeneration slightly to run after sync
-    const timer = setTimeout(regenerateHistory, 2000);
+    const timer = setTimeout(regenerateHistory, 1000);
     return () => clearTimeout(timer);
-  }, [currentWeekStartStr, user]);
+  }, [currentWeekStartStr, user, tasks, isSyncing]);
 
   const logout = () => {
     setUser(null);
