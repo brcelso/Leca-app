@@ -308,42 +308,51 @@ function App() {
 
     // Auto-Regenerate History on Load (Fix for empty mobile history)
     const regenerateHistory = async () => {
-      const allTasks = await db.tasks.toArray();
-      if (allTasks.length === 0) return;
+      try {
+        const allTasks = await db.tasks.toArray();
+        if (allTasks.length === 0) return;
 
-      // Determine history start date: User Creation > First Task > Today
-      let limitDate;
-      if (user?.createdAt) {
-        limitDate = safeDate(user.createdAt);
-      } else {
-        limitDate = allTasks.reduce((min, t) => {
-          const d = safeDate(t.createdAt || t.updatedAt);
-          return d < min ? d : min;
-        }, new Date());
-      }
+        // Determine history start date: User Creation > First Task
+        let limitDate = null;
+        if (user?.createdAt) {
+          limitDate = safeDate(user.createdAt);
+        } else {
+          limitDate = allTasks.reduce((min, t) => {
+            const d = safeDate(t.createdAt || t.updatedAt);
+            return d < min ? d : min;
+          }, new Date());
+        }
 
-      const earliestWeekStart = startOfWeek(limitDate, { weekStartsOn: 0 });
-      const earliestWeekStr = format(earliestWeekStart, 'yyyy-MM-dd');
+        if (!limitDate) return;
 
-      // cleanup: Remove history before the first task (fixes "whole year" issue)
-      await db.history.where('weekStart').below(earliestWeekStr).delete();
+        const earliestWeekStart = startOfWeek(limitDate, { weekStartsOn: 0 });
+        const earliestWeekStr = format(earliestWeekStart, 'yyyy-MM-dd');
 
-      // Rebuild history up to the first task's week or user creation (max 52 weeks back)
-      const updates = [];
-      for (let i = 1; i <= 52; i++) {
-        const pastWeekStart = startOfWeek(subWeeks(today, i), { weekStartsOn: 0 });
+        // cleanup: Remove history before the limit date
+        // ONLY if the limit date is actually in the past compared to the current week
+        if (earliestWeekStart.getTime() < currentWeekStart.getTime()) {
+          await db.history.where('weekStart').below(earliestWeekStr).delete();
+        }
 
-        // Stop if the past week is older than our limit
-        if (pastWeekStart.getTime() < earliestWeekStart.getTime()) break;
+        // Rebuild history up to 52 weeks back, stopping at the limit
+        const updates = [];
+        for (let i = 1; i <= 52; i++) {
+          const pastWeekStart = startOfWeek(subWeeks(today, i), { weekStartsOn: 0 });
 
-        const pastWeekStr = format(pastWeekStart, 'yyyy-MM-dd');
-        const score = calculateScore(allTasks, pastWeekStr);
+          // Stop if the week we are calculating is before our history limit
+          if (pastWeekStart.getTime() < earliestWeekStart.getTime()) break;
 
-        updates.push({ weekStart: pastWeekStr, score });
-      }
+          const pastWeekStr = format(pastWeekStart, 'yyyy-MM-dd');
+          const score = calculateScore(allTasks, pastWeekStr);
+          updates.push({ weekStart: pastWeekStr, score });
+        }
 
-      if (updates.length > 0) {
-        await db.history.bulkPut(updates);
+        if (updates.length > 0) {
+          console.log(`[History] Batch updating ${updates.length} weeks`);
+          await db.history.bulkPut(updates);
+        }
+      } catch (err) {
+        console.error('[History Error]', err);
       }
     };
     // Debounce regeneration slightly to run after sync
