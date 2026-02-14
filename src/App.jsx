@@ -306,9 +306,25 @@ function App() {
       const allTasks = await db.tasks.toArray();
       if (allTasks.length === 0) return;
 
-      // Rebuild last 12 weeks of history
-      for (let i = 1; i <= 12; i++) {
+      // Find earliest task date to limit history
+      const earliestTaskDate = allTasks.reduce((min, t) => {
+        const d = safeDate(t.createdAt || t.updatedAt);
+        return d < min ? d : min;
+      }, new Date());
+
+      const earliestWeekStart = startOfWeek(earliestTaskDate, { weekStartsOn: 0 });
+      const earliestWeekStr = format(earliestWeekStart, 'yyyy-MM-dd');
+
+      // cleanup: Remove history before the first task (fixes "whole year" issue)
+      await db.history.where('weekStart').below(earliestWeekStr).delete();
+
+      // Rebuild history up to the first task's week (max 52 weeks back)
+      for (let i = 1; i <= 52; i++) {
         const pastWeekStart = startOfWeek(subWeeks(today, i), { weekStartsOn: 0 });
+
+        // Stop if we go before the first task was created
+        if (pastWeekStart < earliestWeekStart) break;
+
         const pastWeekStr = format(pastWeekStart, 'yyyy-MM-dd');
 
         const score = calculateScore(allTasks, pastWeekStr);
