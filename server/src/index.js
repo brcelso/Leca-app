@@ -123,7 +123,7 @@ export default {
         }
 
         // Create Billing in AbacatePay
-        // Note: AbacatePay requires a VALID formatted CPF/taxId (XXX.XXX.XXX-XX)
+        // Note: Field is 'price', NOT 'unitPrice'. Root 'amount' is not expected.
         const abacateRes = await fetch('https://api.abacatepay.com/v1/billing/create', {
           method: 'POST',
           headers: {
@@ -137,24 +137,38 @@ export default {
               externalId: 'leca_pro_lifetime',
               name: 'Leca Pro - Acesso Vitalício',
               quantity: 1,
-              unitPrice: 1990 // R$ 19,90
+              price: 1990 // R$ 19,90 (Cents)
             }],
-            amount: 1990,
             returnUrl: 'https://leca.celsosilva.com.br/',
             completionUrl: 'https://leca.celsosilva.com.br/',
             customer: {
               name: userName,
               email: verifiedEmail,
-              taxId: '123.456.789-01', // Format: XXX.XXX.XXX-XX
+              taxId: '12345678901',
               cellphone: '11999999999'
             }
           })
         });
 
         const abacateData = await abacateRes.json();
-        if (!abacateRes.ok) {
-          return new Response(JSON.stringify({ error: 'AbacatePay Error', details: abacateData }), {
-            status: abacateRes.status,
+
+        // Handle cases where API returns 200 but has an error field
+        if (!abacateRes.ok || abacateData.error) {
+          return new Response(JSON.stringify({
+            error: abacateData.error || 'AbacatePay API Error',
+            details: abacateData
+          }), {
+            status: abacateRes.status || 400,
+            headers: corsHeaders
+          });
+        }
+
+        if (!abacateData.data || !abacateData.data.url) {
+          return new Response(JSON.stringify({
+            error: 'Invalid response from AbacatePay',
+            details: abacateData
+          }), {
+            status: 500,
             headers: corsHeaders
           });
         }
