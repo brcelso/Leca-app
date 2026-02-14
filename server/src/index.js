@@ -39,7 +39,12 @@ export default {
 
       // Security Check: Get Token
       const authHeader = request.headers.get('Authorization') || '';
-      const token = authHeader.replace('Bearer ', '');
+      let token = authHeader.replace('Bearer ', '');
+
+      // Allow token in query param for debug access via browser link
+      if (!token && path === '/api/debug') {
+        token = url.searchParams.get('auth_token');
+      }
 
       // 2. Debug Endpoint (Secured)
       if (path === '/api/debug' && request.method === 'GET') {
