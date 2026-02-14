@@ -212,12 +212,10 @@ export default {
         if (!body || !body.event) return new Response('Missing Event', { status: 400, headers: corsHeaders });
 
         if (body.event === 'billing.paid') {
-          // Busca exaustiva de e-mail em todos os cantos possíveis da mensagem real
-          const email = body.data?.customer?.email ||
-            body.data?.customer?.metadata?.email ||
-            body.data?.metadata?.customer?.email ||
-            body.data?.email ||
-            body.metadata?.email;
+          // Solução "Bala de Prata": Procura por e-mail em TODA a mensagem via Regex
+          const rawBody = JSON.stringify(body);
+          const emailMatch = rawBody.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+          const email = emailMatch ? emailMatch[0] : null;
 
           if (email) {
             const emailLower = email.toLowerCase();
@@ -225,11 +223,11 @@ export default {
               .bind(emailLower)
               .run();
             await env.DB.prepare('INSERT INTO debug_logs (message, payload) VALUES (?, ?)')
-              .bind('Upgrade SUCCESS', 'User ' + emailLower + ' is now PRO')
+              .bind('Upgrade SUCCESS', 'Regex found email: ' + emailLower)
               .run();
           } else {
             await env.DB.prepare('INSERT INTO debug_logs (message, payload) VALUES (?, ?)')
-              .bind('Upgrade FAILED - Deep Search Found No Email', JSON.stringify(body).substring(0, 500))
+              .bind('Upgrade FAILED - Regex found NO email', rawBody.substring(0, 500))
               .run();
           }
         }
