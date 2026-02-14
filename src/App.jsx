@@ -426,6 +426,13 @@ function App() {
   };
 
   const openModal = (task = null) => {
+    // RESTRIÇÃO PRO: Limite de 3 hábitos para não-premium
+    if (!task && !user?.isPremium && tasks.length >= 3) {
+      alert('🔒 Limite Alcançado! Usuários gratuitos podem ter até 3 hábitos simultâneos. Faça upgrade para PRO e tenha hábitos ilimitados!');
+      handleCheckout();
+      return;
+    }
+
     if (task) {
       setEditingTask(task);
       setTaskName(task.name);
@@ -599,17 +606,21 @@ function App() {
 
       {showHistory && (
         <div className="glass-card fade-in" style={{ marginBottom: '2rem', padding: '1.5rem' }}>
-          <h2 style={{ marginBottom: '1rem', fontSize: '1.2rem', color: 'var(--primary)' }}>Histórico</h2>
+          <h2 style={{ marginBottom: '1rem', fontSize: '1.2rem', color: 'var(--primary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            Histórico
+            {!user?.isPremium && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>(Limitado para usuários Free)</span>}
+          </h2>
           <div className="stats-grid">
-            {history.length === 0 ? <p style={{ color: 'var(--text-muted)', textAlign: 'center', gridColumn: '1/-1' }}>Vazio.</p> : history.map((h) => (
-              <div key={h.id} className="glass-card" style={{ padding: '1rem', background: 'rgba(255,255,255,0.05)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                  <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>Semana {format(safeDate(h.weekStart), 'dd/MM')}</span>
-                  <span style={{ color: 'var(--success)', fontWeight: 700 }}>{h.score}%</span>
+            {history.length === 0 ? <p style={{ color: 'var(--text-muted)', textAlign: 'center', gridColumn: '1/-1' }}>Vazio.</p> :
+              (user?.isPremium ? history : history.slice(0, 1)).map((h) => (
+                <div key={h.id} className="glass-card" style={{ padding: '1rem', background: 'rgba(255,255,255,0.05)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>Semana {format(safeDate(h.weekStart), 'dd/MM')}</span>
+                    <span style={{ color: 'var(--success)', fontWeight: 700 }}>{h.score}%</span>
+                  </div>
+                  <div className="progress-bar-container"><div className="progress-bar" style={{ width: `${h.score}%` }}></div></div>
                 </div>
-                <div className="progress-bar-container"><div className="progress-bar" style={{ width: `${h.score}%` }}></div></div>
-              </div>
-            ))}
+              ))}
           </div>
         </div>
       )}
