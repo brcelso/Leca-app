@@ -328,21 +328,19 @@ function App() {
       // cleanup: Remove history before the first task (fixes "whole year" issue)
       await db.history.where('weekStart').below(earliestWeekStr).delete();
 
-      // Rebuild history up to the first task's week (max 52 weeks back)
+      // Rebuild history up to the first task's week or user creation (max 52 weeks back)
       for (let i = 1; i <= 52; i++) {
         const pastWeekStart = startOfWeek(subWeeks(today, i), { weekStartsOn: 0 });
 
-        // Stop if we go before the first task was created
-        if (pastWeekStart < earliestWeekStart) break;
+        // Stop if the past week is older than our limit
+        if (pastWeekStart.getTime() < earliestWeekStart.getTime()) break;
 
         const pastWeekStr = format(pastWeekStart, 'yyyy-MM-dd');
 
         const score = calculateScore(allTasks, pastWeekStr);
-        // Only add if not exists (or update if we want to force consistency)
-        const existing = await db.history.where('weekStart').equals(pastWeekStr).first();
-        if (!existing || existing.score !== score) {
-          await db.history.put({ weekStart: pastWeekStr, score });
-        }
+
+        // Always update to ensure consistency across devices
+        await db.history.put({ weekStart: pastWeekStr, score });
       }
     };
     // Debounce regeneration slightly to run after sync
