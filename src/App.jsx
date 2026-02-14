@@ -381,14 +381,16 @@ function App() {
         }
       });
       const data = await res.json();
-      if (data.url) {
+      if (res.ok && data.url) {
         window.location.href = data.url;
       } else {
-        alert('Erro ao gerar checkout. Tente novamente.');
+        const msg = data.error || data.message || 'Erro desconhecido';
+        alert(`Erro no Checkout (${res.status}): ${msg}`);
+        console.error('Checkout error details:', data);
       }
     } catch (e) {
       console.error('Checkout failed', e);
-      alert('Erro de conexão com o servidor.');
+      alert('Erro de conexão: ' + e.message);
     } finally {
       setIsSyncing(false);
     }
