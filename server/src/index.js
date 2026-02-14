@@ -62,10 +62,10 @@ export default {
           global: { total_tasks: 0, total_users: 0 }
         };
 
-        const globalTasks = await env.DB.prepare('SELECT COUNT(*) as total FROM tasks').first();
-        const globalUsers = await env.DB.prepare('SELECT COUNT(*) as total FROM users').first();
-        stats.global.total_tasks = globalTasks?.total || 0;
-        stats.global.total_users = globalUsers?.total || 0;
+        const globalTasks = 0; // Hidden for privacy
+        const globalUsers = 0; // Hidden for privacy
+        stats.global.total_tasks = 0;
+        stats.global.total_users = 0;
 
         if (verifiedEmail) {
           const userRow = await env.DB.prepare('SELECT is_premium FROM users WHERE email = ?').bind(verifiedEmail).first();
