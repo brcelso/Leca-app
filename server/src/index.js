@@ -212,10 +212,12 @@ export default {
         if (!body || !body.event) return new Response('Missing Event', { status: 400, headers: corsHeaders });
 
         if (body.event === 'billing.paid') {
+          // Busca exaustiva de e-mail em todos os cantos possíveis da mensagem real
           const email = body.data?.customer?.email ||
             body.data?.customer?.metadata?.email ||
+            body.data?.metadata?.customer?.email ||
             body.data?.email ||
-            body.data?.customerMetadata?.email;
+            body.metadata?.email;
 
           if (email) {
             const emailLower = email.toLowerCase();
@@ -223,11 +225,11 @@ export default {
               .bind(emailLower)
               .run();
             await env.DB.prepare('INSERT INTO debug_logs (message, payload) VALUES (?, ?)')
-              .bind('Upgrade SUCCESS', emailLower)
+              .bind('Upgrade SUCCESS', 'User ' + emailLower + ' is now PRO')
               .run();
           } else {
             await env.DB.prepare('INSERT INTO debug_logs (message, payload) VALUES (?, ?)')
-              .bind('Upgrade FAILED - No Email Found', JSON.stringify(body))
+              .bind('Upgrade FAILED - Deep Search Found No Email', JSON.stringify(body).substring(0, 500))
               .run();
           }
         }
