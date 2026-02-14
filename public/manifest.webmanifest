@@ -2,7 +2,7 @@
     "name": "Leca - Hábitos de Alta Performance",
     "short_name": "Leca",
     "description": "Rastreador de hábitos focado em disciplina e performance.",
-    "start_url": "/",
+    "start_url": "./",
     "display": "standalone",
     "background_color": "#0f172a",
     "theme_color": "#8b5cf6",
