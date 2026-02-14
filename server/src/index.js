@@ -32,7 +32,7 @@ export default {
     try {
       // 1. Health Check
       if (path === '/' || path === '') {
-        return new Response('Leca API v6 - Online 🥂', {
+        return new Response('Leca API v7.1 (Secure Checkout) - Online 🥂', {
           headers: { ...corsHeaders, 'content-type': 'text/plain; charset=UTF-8' }
         });
       }
@@ -144,16 +144,32 @@ export default {
             customer: {
               name: userName,
               email: verifiedEmail,
-              taxId: '12345678901',
-              cellphone: '11999999999'
+              taxId: '36713044808', // Provided by user
+              cellphone: '11972509876'
             }
           })
         });
 
-        const abacateData = await abacateRes.json();
+        let abacateData;
+        try {
+          abacateData = await abacateRes.json();
+        } catch (e) {
+          return new Response(JSON.stringify({ error: 'AbacatePay returned invalid JSON', status: abacateRes.status }), {
+            status: 500,
+            headers: corsHeaders
+          });
+        }
 
-        // Handle cases where API returns 200 but has an error field
-        if (!abacateRes.ok || abacateData.error) {
+        if (!abacateData) {
+          return new Response(JSON.stringify({ error: 'Empty response from AbacatePay' }), {
+            status: 500,
+            headers: corsHeaders
+          });
+        }
+
+        // Handle cases where API returns 200 but has an error field or fails validation
+        const hasError = !abacateRes.ok || abacateData.error;
+        if (hasError) {
           return new Response(JSON.stringify({
             error: abacateData.error || 'AbacatePay API Error',
             details: abacateData
@@ -163,9 +179,11 @@ export default {
           });
         }
 
-        if (!abacateData.data || !abacateData.data.url) {
+        // Final check before accessing url
+        const checkoutUrl = abacateData.data?.url;
+        if (!checkoutUrl) {
           return new Response(JSON.stringify({
-            error: 'Invalid response from AbacatePay',
+            error: 'Checkout URL not found in AbacatePay response',
             details: abacateData
           }), {
             status: 500,
@@ -173,7 +191,7 @@ export default {
           });
         }
 
-        return new Response(JSON.stringify({ url: abacateData.data.url }), {
+        return new Response(JSON.stringify({ url: checkoutUrl }), {
           headers: { ...corsHeaders, 'content-type': 'application/json' }
         });
       }
