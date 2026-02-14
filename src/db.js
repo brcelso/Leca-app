@@ -10,6 +10,11 @@ db.version(1).stores({
     history: '++id, weekStart, score'
 });
 
+// v2: Change history PK to weekStart to prevent duplicates
+db.version(2).stores({
+    history: 'weekStart, score'
+});
+
 // Helper to generate UUID (Polyfill for older iOS/Safari)
 export const generateUUID = () => {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
