@@ -143,7 +143,7 @@ export default {
             completionUrl: 'https://leca.celsosilva.com.br/',
             customer: {
               email: verifiedEmail,
-              name: userName,
+              name: userName + ' (Leca)', // Change name slightly to force Abacate update
               taxId: '36713044808',
               cellphone: '11972509876'
             }
