@@ -73,6 +73,9 @@ export default {
           stats.is_premium = userRow?.is_premium === 1;
           const count = await env.DB.prepare('SELECT COUNT(*) as total FROM tasks WHERE user_email = ?').bind(verifiedEmail).first();
           stats.tasks = count?.total || 0;
+          // For compatibility, mirror user stats to 'global' structure so frontend shows something useful
+          stats.global.total_tasks = stats.tasks;
+          stats.global.total_users = 1; // Just you
         }
 
         return new Response(JSON.stringify({
