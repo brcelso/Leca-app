@@ -524,3 +524,63 @@ label {
   font-size: 0.9rem;
   font-weight: 500;
 }
+
+/* MOBILE ENHANCEMENTS */
+@media (max-width: 640px) {
+  .container {
+    padding: 0.75rem;
+  }
+
+  .header {
+    gap: 0.75rem;
+  }
+
+  h1 {
+    font-size: 1.25rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
+  .stat-card:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .stat-value {
+    font-size: 1.5rem;
+  }
+
+  .checkbox-day {
+    max-width: 44px;
+    /* Larger touch target for mobile cards */
+    max-height: 44px;
+    border-radius: 12px;
+  }
+
+  .task-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+/* Scrollbar styling for a premium feel */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-dark);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--primary);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-hover);
+}

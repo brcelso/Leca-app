@@ -25,10 +25,10 @@ export const generateUUID = () => {
  * Sync single task to Cloudflare Worker
  * @param {Object} task 
  * @param {String} userEmail 
- * @param {String} token (Optional for now)
+ * @param {String} token Google ID Token
  */
-export const syncTaskToCloud = async (task, userEmail) => {
-    if (!userEmail) return;
+export const syncTaskToCloud = async (task, userEmail, token) => {
+    if (!userEmail || !token) return;
     const email = userEmail.toLowerCase();
 
     try {
@@ -36,8 +36,8 @@ export const syncTaskToCloud = async (task, userEmail) => {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-User-Email': email, // Normalized email
-                'Authorization': `Bearer local-dev-token`
+                'X-User-Email': email,
+                'Authorization': `Bearer ${token}`
             },
             body: JSON.stringify({
                 uuid: task.uuid,
@@ -59,14 +59,14 @@ export const syncTaskToCloud = async (task, userEmail) => {
 /**
  * Fetch all tasks from Cloudflare
  */
-export const fetchAllTasks = async (userEmail) => {
-    if (!userEmail) return [];
+export const fetchAllTasks = async (userEmail, token) => {
+    if (!userEmail || !token) return [];
     const email = userEmail.toLowerCase();
     try {
         const response = await fetch(`${API_URL}/tasks`, {
             headers: {
                 'X-User-Email': email,
-                'Authorization': `Bearer local-dev-token`
+                'Authorization': `Bearer ${token}`
             }
         });
         if (response.ok) return await response.json();
@@ -80,12 +80,12 @@ export const fetchAllTasks = async (userEmail) => {
 /**
  * Push all local tasks to Cloudflare
  */
-export const syncAllToCloud = async (userEmail) => {
-    if (!userEmail) return;
+export const syncAllToCloud = async (userEmail, token) => {
+    if (!userEmail || !token) return;
     const email = userEmail.toLowerCase();
     const allTasks = await db.tasks.toArray();
     for (const task of allTasks) {
-        await syncTaskToCloud(task, email);
+        await syncTaskToCloud(task, email, token);
     }
 };
 

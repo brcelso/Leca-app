@@ -7,6 +7,19 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-User-Email',
 };
 
+// 0. Helper: Verify Google Token
+async function verifyGoogleToken(token) {
+  if (!token || token === 'local-dev-token') return null;
+  try {
+    const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${token}`);
+    if (!res.ok) return null;
+    const payload = await res.json();
+    return payload.email?.toLowerCase();
+  } catch (e) {
+    return null;
+  }
+}
+
 export default {
   async fetch(request, env, ctx) {
     if (request.method === 'OPTIONS') {
@@ -24,42 +37,43 @@ export default {
         });
       }
 
+      // Security Check: Get Token
+      const authHeader = request.headers.get('Authorization') || '';
+      const token = authHeader.replace('Bearer ', '');
+
       // 2. Debug Endpoint (Secured)
       if (path === '/api/debug' && request.method === 'GET') {
-        const userEmail = request.headers.get('X-User-Email') || url.searchParams.get('email');
+        const verifiedEmail = await verifyGoogleToken(token);
+        const headerEmail = request.headers.get('X-User-Email') || url.searchParams.get('email');
+
+        // Strict Check: Only show debug for your own account
+        if (!verifiedEmail || verifiedEmail !== headerEmail?.toLowerCase()) {
+          return new Response('Unauthorized Debug Access', { status: 401, headers: corsHeaders });
+        }
+
         let stats = {
           tasks: null,
           user_exists: false,
-          global: {
-            total_tasks: 0,
-            total_users: 0
-          }
+          global: { total_tasks: 0, total_users: 0 }
         };
 
-        // Get Global Stats (to verify DB is alive even without login)
         const globalTasks = await env.DB.prepare('SELECT COUNT(*) as total FROM tasks').first();
         const globalUsers = await env.DB.prepare('SELECT COUNT(*) as total FROM users').first();
         stats.global.total_tasks = globalTasks?.total || 0;
         stats.global.total_users = globalUsers?.total || 0;
 
-        if (userEmail) {
-          const emailLower = userEmail.toLowerCase();
-
-          // Check if user exists in users table
-          const userCheck = await env.DB.prepare('SELECT 1 FROM users WHERE email = ?').bind(emailLower).first();
+        if (verifiedEmail) {
+          const userCheck = await env.DB.prepare('SELECT 1 FROM users WHERE email = ?').bind(verifiedEmail).first();
           stats.user_exists = !!userCheck;
-
-          // Count tasks
-          const count = await env.DB.prepare('SELECT COUNT(*) as total FROM tasks WHERE user_email = ?').bind(emailLower).first();
+          const count = await env.DB.prepare('SELECT COUNT(*) as total FROM tasks WHERE user_email = ?').bind(verifiedEmail).first();
           stats.tasks = count?.total || 0;
         }
 
         return new Response(JSON.stringify({
           status: 'online',
           database: 'connected',
-          requested_email: userEmail || 'none',
+          verified_user: verifiedEmail,
           stats: stats,
-          recent_logins: [], // Privacy: Never leak other users
           server_time: new Date().toISOString()
         }), {
           headers: { ...corsHeaders, 'content-type': 'application/json' }
@@ -68,10 +82,14 @@ export default {
 
       // 3. Login Endpoint
       if (path === '/api/login' && request.method === 'POST') {
+        const verifiedEmail = await verifyGoogleToken(token);
         let { email, name, picture } = await request.json();
-        if (!email) return new Response('Email required', { status: 400, headers: corsHeaders });
 
-        email = email.toLowerCase(); // Normalize email
+        if (!verifiedEmail || verifiedEmail !== email?.toLowerCase()) {
+          return new Response('Unauthorized Login attempt', { status: 401, headers: corsHeaders });
+        }
+
+        const emailLower = verifiedEmail;
 
         await env.DB.prepare(`
           INSERT INTO users (email, name, picture, last_login)
@@ -80,7 +98,7 @@ export default {
             name = excluded.name,
             picture = excluded.picture,
             last_login = CURRENT_TIMESTAMP
-        `).bind(email, name || null, picture || null).run();
+        `).bind(emailLower, name || null, picture || null).run();
 
         return new Response(JSON.stringify({ success: true }), {
           headers: { ...corsHeaders, 'content-type': 'application/json' }
@@ -88,13 +106,15 @@ export default {
       }
 
       // 4. Tasks Endpoints
-      // Auth Check for Tasks
       if (path.startsWith('/api/tasks')) {
-        const userEmail = request.headers.get('X-User-Email');
-        if (!userEmail) {
-          return new Response('Unauthorized - Missing X-User-Email header', { status: 401, headers: corsHeaders });
+        const verifiedEmail = await verifyGoogleToken(token);
+        const headerEmail = request.headers.get('X-User-Email');
+
+        if (!verifiedEmail || verifiedEmail !== headerEmail?.toLowerCase()) {
+          return new Response('Unauthorized - Invalid Token or Email Mismatch', { status: 401, headers: corsHeaders });
         }
-        const emailLower = userEmail.toLowerCase();
+
+        const emailLower = verifiedEmail;
 
         // GET Tasks
         if (request.method === 'GET') {
@@ -131,12 +151,11 @@ export default {
         }
 
         // DELETE Task
-        // Match /api/tasks/:uuid
         const match = path.match(/^\/api\/tasks\/([^\/]+)$/);
         if (request.method === 'DELETE' && match) {
           const uuid = match[1];
           await env.DB.prepare('DELETE FROM tasks WHERE uuid = ? AND user_email = ?')
-            .bind(uuid, userEmail)
+            .bind(uuid, emailLower)
             .run();
           return new Response('Deleted', { headers: corsHeaders });
         }
@@ -146,7 +165,7 @@ export default {
 
     } catch (err) {
       console.error('[Worker Error]', err);
-      return new Response(JSON.stringify({ error: err.message, stack: err.stack }), {
+      return new Response(JSON.stringify({ error: err.message }), {
         status: 500,
         headers: { ...corsHeaders, 'content-type': 'application/json' }
       });

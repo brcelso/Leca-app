@@ -52,9 +52,10 @@ function App() {
     count: 0
   });
 
-  const runDiagnostics = async (currentEmail) => {
+  const runDiagnostics = async (currentEmail, currentToken) => {
     const apiBase = (import.meta.env.VITE_API_URL || 'http://localhost:8787/api').replace('/api', '');
     const emailToSearch = currentEmail || user?.email;
+    const tokenToUse = currentToken || user?.token;
 
     setDiagnostics(prev => ({ ...prev, health: 'loading', db: 'loading', userInCloud: 'loading' }));
 
@@ -66,7 +67,10 @@ function App() {
 
       // 2. DB Debug Check
       const dRes = await fetch(`${apiBase}/api/debug`, {
-        headers: { 'X-User-Email': emailToSearch || '' }
+        headers: {
+          'X-User-Email': emailToSearch || '',
+          'Authorization': tokenToUse ? `Bearer ${tokenToUse}` : ''
+        }
       });
       if (dRes.ok) {
         const data = await dRes.json();
@@ -111,6 +115,7 @@ function App() {
       name: payload.name,
       email: payload.email,
       picture: payload.picture,
+      token: response.credential, // Save the raw JWT from Google
     };
     setUser(newUser);
     localStorage.setItem('leca_user', JSON.stringify(newUser));
@@ -119,14 +124,15 @@ function App() {
     try {
       const loginRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8787/api'}/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${response.credential}`
+        },
         body: JSON.stringify(newUser)
       });
 
       if (loginRes.ok) {
-        // Run Proactive Diagnostics
-        // setShowTroubleshooter(true); // Auto-open disabled
-        runDiagnostics(newUser.email);
+        runDiagnostics(newUser.email, response.credential);
       }
     } catch (err) {
       console.error('[Cloud Login Track Failed]', err);
@@ -157,14 +163,17 @@ function App() {
     initGoogle();
   }, [user]);
 
-  // Self-Healing: Ensure user exists in Cloud DB (for users who logged in before the DB update)
+  // Self-Healing: Ensure user exists in Cloud DB
   useEffect(() => {
-    if (user && user.email) {
+    if (user && user.email && user.token) {
       const ensureCloudRegistration = async () => {
         try {
           await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8787/api'}/login`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${user.token}`
+            },
             body: JSON.stringify(user)
           });
         } catch (e) {
@@ -178,12 +187,12 @@ function App() {
   // Sync Logic: Periodic Pull and Initial Load
   useEffect(() => {
     const sync = async () => {
-      if (!user) return;
+      if (!user?.email || !user?.token) return;
 
       setIsSyncing(true);
       try {
         // 1. Pull remote tasks
-        const remoteTasks = await fetchAllTasks(user.email);
+        const remoteTasks = await fetchAllTasks(user.email, user.token);
         for (const r of remoteTasks) {
           const local = await db.tasks.where('uuid').equals(r.uuid).first();
           const completions = typeof r.completions === 'string' ? JSON.parse(r.completions) : (r.completions || []);
@@ -217,7 +226,7 @@ function App() {
           }
         }
         // 2. Push local changes
-        await syncAllToCloud(user.email);
+        await syncAllToCloud(user.email, user.token);
       } catch (err) {
         console.error('[Sync Error]', err);
       } finally {
@@ -296,7 +305,7 @@ function App() {
         updatedAt: new Date().toISOString()
       };
       await db.tasks.update(editingTask.id, updated);
-      if (user) syncTaskToCloud({ ...editingTask, ...updated }, user.email);
+      if (user?.email && user?.token) syncTaskToCloud({ ...editingTask, ...updated }, user.email, user.token);
     } else {
       const newTask = {
         uuid: generateUUID(),
@@ -308,7 +317,7 @@ function App() {
         updatedAt: new Date().toISOString()
       };
       const id = await db.tasks.add(newTask);
-      if (user) syncTaskToCloud({ ...newTask, id }, user.email);
+      if (user?.email && user?.token) syncTaskToCloud({ ...newTask, id }, user.email, user.token);
     }
     closeModal();
   };
@@ -325,18 +334,26 @@ function App() {
       updatedAt: new Date().toISOString()
     };
     await db.tasks.update(task.id, updated);
-    if (user) syncTaskToCloud({ ...task, ...updated }, user.email);
+    if (user?.email && user?.token) toggleDayInCloud(task.uuid, updated, user.email, user.token);
+  };
+
+  const toggleDayInCloud = async (uuid, updated, email, token) => {
+    // Reusing syncTaskToCloud logic
+    syncTaskToCloud({ uuid, ...updated }, email, token);
   };
 
   const deleteTask = async (id) => {
     if (confirm('Excluir este hábito?')) {
       const task = await db.tasks.get(id);
       await db.tasks.delete(id);
-      if (user && task) {
+      if (user?.email && user?.token && task) {
         // Soft delete or real delete via API
         fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8787/api'}/tasks/${task.uuid}`, {
           method: 'DELETE',
-          headers: { 'X-User-Email': user.email, 'Authorization': 'Bearer local-dev-token' }
+          headers: {
+            'X-User-Email': user.email,
+            'Authorization': `Bearer ${user.token}`
+          }
         }).catch(err => console.error('[Sync Delete Error]', err));
       }
     }
