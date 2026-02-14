@@ -134,7 +134,7 @@ export default {
             frequency: 'ONE_TIME',
             methods: ['PIX'],
             products: [{
-              externalId: 'leca_pro_vitalicio_v2', // Changed to force fresh session
+              externalId: 'leca_pro_lifetime', // Revertido para o ID original de sucesso
               name: 'Leca Pro - Acesso Vitalício',
               quantity: 1,
               price: 1990 // R$ 19,90 (Cents)
@@ -143,8 +143,8 @@ export default {
             completionUrl: 'https://leca.celsosilva.com.br/',
             customer: {
               email: verifiedEmail,
-              name: userName + ' (Leca)', // Change name slightly to force Abacate update
-              taxId: '36713044808',
+              name: userName, // Removido o "(Leca)" para bater com o teste
+              taxId: '36713044808', // O CPF que funciona
               cellphone: '11972509876'
             }
           })
