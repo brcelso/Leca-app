@@ -113,12 +113,17 @@ export default {
           return new Response('Unauthorized', { status: 401, headers: corsHeaders });
         }
 
+        // Get user name from DB
+        const userRow = await env.DB.prepare('SELECT name FROM users WHERE email = ?').bind(verifiedEmail).first();
+        const userName = userRow?.name || 'Cliente Leca';
+
         const apiKey = env.ABACATE_PAY_API_KEY;
         if (!apiKey) {
           return new Response('AbacatePay API Key not configured', { status: 500, headers: corsHeaders });
         }
 
         // Create Billing in AbacatePay
+        // Note: AbacatePay requires a VALID formatted CPF/taxId (XXX.XXX.XXX-XX)
         const abacateRes = await fetch('https://api.abacatepay.com/v1/billing/create', {
           method: 'POST',
           headers: {
@@ -134,10 +139,14 @@ export default {
               quantity: 1,
               unitPrice: 1990 // R$ 19,90
             }],
+            amount: 1990,
             returnUrl: 'https://leca.celsosilva.com.br/',
             completionUrl: 'https://leca.celsosilva.com.br/',
             customer: {
-              email: verifiedEmail
+              name: userName,
+              email: verifiedEmail,
+              taxId: '123.456.789-01', // Format: XXX.XXX.XXX-XX
+              cellphone: '11999999999'
             }
           })
         });
