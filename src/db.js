@@ -4,15 +4,10 @@ import Dexie from 'dexie';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787/api';
 
 // Local DB (Dexie) - cache for offline usage and performance
-export const db = new Dexie('LecaDB_v7'); // Incremented version for v7 (User isolation)
+export const db = new Dexie('LecaDB_v8'); // Incremented to v8 to allow PK change in history
 db.version(1).stores({
     tasks: '++id, uuid, userEmail, name, targetFreq, completions, createdAt, updatedAt',
-    history: '++id, weekStart, score'
-});
-
-// v2: Change history PK to weekStart to prevent duplicates
-db.version(2).stores({
-    history: 'weekStart, score'
+    history: 'weekStart, score' // weekStart is PK from start
 });
 
 // Helper to generate UUID (Polyfill for older iOS/Safari)
@@ -95,10 +90,28 @@ export const syncAllToCloud = async (userEmail, token) => {
 };
 
 /**
- * Migration helper from LecaDB_v5 (Supabase version)
+ * Migration helper from older versions
  */
 export const migrateData = async () => {
     try {
+        // Migrate from v7 to v8
+        const v7Exists = await Dexie.exists('LecaDB_v7');
+        if (v7Exists) {
+            const v7Db = new Dexie('LecaDB_v7');
+            await v7Db.open();
+            const oldTasks = await v7Db.table('tasks').toArray();
+            for (const t of oldTasks) {
+                const exists = await db.tasks.where('uuid').equals(t.uuid).first();
+                if (!exists) {
+                    // Remove id to let v8 generate its own if it was ++id
+                    const { id, ...taskData } = t;
+                    await db.tasks.add(taskData);
+                }
+            }
+            console.log('[Migration] Data moved from v7 to v8');
+        }
+
+        // Keep v5 migration for very old users
         const v5Exists = await Dexie.exists('LecaDB_v5');
         if (v5Exists) {
             const v5Db = new Dexie('LecaDB_v5');
@@ -107,13 +120,13 @@ export const migrateData = async () => {
             for (const t of oldTasks) {
                 const exists = await db.tasks.where('uuid').equals(t.uuid).first();
                 if (!exists) {
+                    const { id, ...taskData } = t;
                     await db.tasks.add({
-                        ...t,
+                        ...taskData,
                         updatedAt: t.updatedAt || new Date().toISOString()
                     });
                 }
             }
-            console.log('[Migration] Data moved from v5 to v6');
         }
     } catch (e) {
         console.warn('[Migration] Error or no previous data:', e);
