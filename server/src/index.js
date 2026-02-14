@@ -200,35 +200,35 @@ export default {
       if (path === '/api/webhook/abacate' && request.method === 'POST') {
         let body;
         try {
-          const rawHeader = request.headers.get('content-type');
           body = await request.json();
-          console.log('[AbacatePay Webhook Received]', JSON.stringify(body));
+          // Black Box Logging - Fundamental para Debug
+          await env.DB.prepare('INSERT INTO debug_logs (message, payload) VALUES (?, ?)')
+            .bind('Webhook RECEIVED', JSON.stringify(body))
+            .run();
         } catch (e) {
-          console.error('[AbacatePay Webhook Body Parse Error]', e.message);
           return new Response('Invalid JSON', { status: 400, headers: corsHeaders });
         }
 
-        if (!body || !body.event) {
-          return new Response('Missing Event', { status: 400, headers: corsHeaders });
-        }
+        if (!body || !body.event) return new Response('Missing Event', { status: 400, headers: corsHeaders });
 
-        // Em produção, você deve verificar a assinatura do webhook aqui
-        // No modo dev, vamos apenas processar o evento de billing.paid
         if (body.event === 'billing.paid') {
-          // Robust email extraction: check multiple possible paths
           const email = body.data?.customer?.email ||
             body.data?.customer?.metadata?.email ||
             body.data?.email ||
-            body.data?.customerMetadata?.email; // Safe check
+            body.data?.customerMetadata?.email;
 
           if (email) {
             const emailLower = email.toLowerCase();
             await env.DB.prepare('UPDATE users SET is_premium = 1 WHERE email = ?')
               .bind(emailLower)
               .run();
-            console.log(`[AbacatePay] Webhook Success: ${emailLower} is now Premium.`);
+            await env.DB.prepare('INSERT INTO debug_logs (message, payload) VALUES (?, ?)')
+              .bind('Upgrade SUCCESS', emailLower)
+              .run();
           } else {
-            console.error('[AbacatePay] Webhook Error: No email found in payload', JSON.stringify(body));
+            await env.DB.prepare('INSERT INTO debug_logs (message, payload) VALUES (?, ?)')
+              .bind('Upgrade FAILED - No Email Found', JSON.stringify(body))
+              .run();
           }
         }
 
