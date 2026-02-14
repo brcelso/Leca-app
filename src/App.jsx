@@ -714,7 +714,7 @@ function App() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {tasks.map(task => (
-              <div key={task.id} className="glass-card" style={{ padding: '1.25rem', background: 'rgba(255,255,255,0.03)' }}>
+              <div key={task.id} className="glass-card" style={{ padding: '1rem', background: 'rgba(255,255,255,0.03)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
                   <div><div className="task-name" style={{ fontSize: '1.1rem' }}>{task.name}</div><div className="task-frequency">{task.targetFreq}x</div></div>
                   <div style={{ display: 'flex', gap: '0.6rem' }}>
@@ -722,14 +722,14 @@ function App() {
                     <button onClick={() => deleteTask(task.id)} className="btn-icon-tiny" style={{ color: 'var(--danger)' }}><Trash2 size={18} /></button>
                   </div>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.4rem', marginBottom: '1rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.2rem', marginBottom: '1rem' }}>
                   {DAYS_OF_WEEK.map(d => {
                     const dayDate = addDays(currentWeekStart, d);
                     const isDone = (task.completions || []).includes(format(dayDate, 'yyyy-MM-dd'));
                     return (
                       <div key={d} style={{ textAlign: 'center' }}>
                         <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginBottom: '0.4rem' }}>{WEEK_DAYS_SHORT[d]} {format(dayDate, 'dd/MM')}</div>
-                        <div className={`checkbox-day ${isDone ? 'checked' : ''}`} style={{ width: '100%', height: '36px' }} onClick={() => toggleDay(task, dayDate)}>{isDone && <Check size={18} color="white" />}</div>
+                        <div className={`checkbox-day ${isDone ? 'checked' : ''}`} style={{ width: '100%' }} onClick={() => toggleDay(task, dayDate)}>{isDone && <Check size={18} color="white" />}</div>
                       </div>
                     );
                   })}
