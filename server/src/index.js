@@ -142,9 +142,9 @@ export default {
           body: JSON.stringify({
             items: [
               {
-                title: 'Leca Pro - Acesso Vitalício (Teste)',
+                title: 'Leca Pro - Acesso Vitalício',
                 quantity: 1,
-                unit_price: 5.00,
+                unit_price: 19.90,
                 currency_id: 'BRL'
               }
             ],
@@ -201,7 +201,7 @@ export default {
         const accessToken = env.MP_ACCESS_TOKEN;
 
         // Case 1: Topic is 'payment'
-        if ((body.type === 'payment' || body.topic === 'payment') && (body.data?.id || body.id)) {
+        if ((body.type === 'payment' || body.topic === 'payment' || body.action?.startsWith('payment.')) && (body.data?.id || body.id)) {
           const paymentId = body.data?.id || body.id;
           const paymentRes = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
             headers: { 'Authorization': `Bearer ${accessToken}` }
@@ -209,6 +209,10 @@ export default {
 
           if (paymentRes.ok) {
             const paymentData = await paymentRes.json();
+            await env.DB.prepare('INSERT INTO debug_logs (message, payload) VALUES (?, ?)')
+              .bind('MP Payment Status', `ID: ${paymentId} | Status: ${paymentData.status} | Ref: ${paymentData.external_reference}`)
+              .run();
+
             if (paymentData.status === 'approved') {
               const email = paymentData.external_reference || paymentData.payer?.email;
               if (email) {
@@ -219,10 +223,14 @@ export default {
                   .run();
               }
             }
+          } else {
+            await env.DB.prepare('INSERT INTO debug_logs (message, payload) VALUES (?, ?)')
+              .bind('MP Payment Fetch FAILED', `ID: ${paymentId} | Code: ${paymentRes.status}`)
+              .run();
           }
         }
 
-        // Case 2: Topic is 'merchant_order' (Common in Checkout Pro)
+        // Case 2: Topic is 'merchant_order'
         if ((body.type === 'merchant_order' || body.topic === 'merchant_order') && (body.data?.id || body.id)) {
           const orderId = body.data?.id || body.id;
           const orderRes = await fetch(`https://api.mercadopago.com/v1/merchant_orders/${orderId}`, {
@@ -231,7 +239,10 @@ export default {
 
           if (orderRes.ok) {
             const orderData = await orderRes.json();
-            // Check if order is fully paid
+            await env.DB.prepare('INSERT INTO debug_logs (message, payload) VALUES (?, ?)')
+              .bind('MP Order Status', `ID: ${orderId} | Status: ${orderData.status} | Ref: ${orderData.external_reference}`)
+              .run();
+
             if (orderData.status === 'closed' || orderData.order_status === 'paid') {
               const email = orderData.external_reference || orderData.payer?.email;
               if (email) {

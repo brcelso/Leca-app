@@ -1,16 +1,33 @@
-# React + Vite
+# Leca App - Seu Diário de Hábitos Progressivo 🚀
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Leca é um aplicativo de rastreamento de hábitos (PWA) projetado para ajudar você a manter o foco no que importa. Construído com uma arquitetura moderna e serverless, o Leca oferece uma experiência rápida, offline e segura.
 
-Currently, two official plugins are available:
+## ✨ Funcionalidades
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Rastreamento de Hábitos**: Sistema de metas semanais com visualização clara de completude.
+- **Histórico Completo**: Acompanhe sua evolução ao longo das semanas.
+- **PWA (Instalável)**: Baixe o Leca diretamente no seu celular (Android/iOS) sem passar pela App Store.
+- **Sincronização Cloud**: Seus dados são salvos de forma segura no Cloudflare D1 através de um Worker de alto desempenho.
+- **Leca PRO**: Acesso vitalício a funcionalidades avançadas, como navegação histórica profunda.
 
-## React Compiler
+## 🛠️ Tecnologias
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Frontend**: React + Vite + Lucide Icons
+- **Backend**: Cloudflare Workers (Node.js/JS)
+- **Banco de Dados**: Cloudflare D1 (SQLite na borda)
+- **Pagamento**: Mercado Pago (Integração Direta com PIX)
+- **Hospedagem**: GitHub Pages + Cloudflare
 
-## Expanding the ESLint configuration
+## 📲 Como Instalar
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+1. Acesse [brcelso.github.io/Leca-app/](https://brcelso.github.io/Leca-app/)
+2. Clique no botão **"Instalar Leca no Celular"** na tela de login.
+3. No iPhone: Clique no ícone de compartilhar e selecione "Adicionar à Tela de Início".
+4. Pronto! O Leca agora funciona como um aplicativo nativo.
+
+## 💎 Versão PRO
+
+O Leca utiliza o **Mercado Pago** para processar pagamentos de forma segura e rápida via PIX. Aproveite o acesso vitalício por um valor único de **R$ 19,90**.
+
+---
+*Desenvolvido por Celso Silva Junior - Transformando infraestrutura em experiência digital.*
