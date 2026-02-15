@@ -54,6 +54,45 @@ function App() {
     count: 0
   });
 
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [isInstalled, setIsInstalled] = useState(false);
+
+  // PWA Install Logic
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+
+    const handleAppInstalled = () => {
+      setInstallPrompt(null);
+      setIsInstalled(true);
+      console.log('Leca foi instalado com sucesso! 🎉');
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    // Check if already installed
+    if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone) {
+      setIsInstalled(true);
+    }
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setInstallPrompt(null);
+    }
+  };
+
   const runDiagnostics = async (currentEmail, currentToken) => {
     const apiBase = (import.meta.env.VITE_API_URL || 'http://localhost:8787/api').replace('/api', '');
     const emailToSearch = currentEmail || user?.email;
@@ -519,6 +558,32 @@ function App() {
           <div className="login-logo">Leca</div>
           <h2>Hábitos em Alta Performance</h2>
           <div id="googleBtn" style={{ marginTop: '2rem' }}></div>
+
+          {installPrompt && (
+            <button
+              className="btn-primary fade-in"
+              onClick={handleInstallClick}
+              style={{
+                marginTop: '1.5rem',
+                width: '100%',
+                background: 'linear-gradient(135deg, #8b5cf6, #6d28d9)',
+                padding: '1rem',
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px'
+              }}
+            >
+              <Cloud size={20} /> Instalar Leca no Celular
+            </button>
+          )}
+
+          {!installPrompt && !isInstalled && (
+            <p style={{ marginTop: '1.5rem', fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+              Dica: Para baixar o app no iPhone, clique em "Compartilhar" e "Adicionar à Tela de Início".
+            </p>
+          )}
         </div>
 
         {/* Troubleshooter available on Login Screen */}
@@ -658,6 +723,11 @@ function App() {
           <button className="btn-icon" onClick={() => window.location.reload()} title="Recarregar">
             <RefreshCw size={22} />
           </button>
+          {installPrompt && (
+            <button className="btn-icon" onClick={handleInstallClick} title="Instalar App" style={{ color: 'var(--primary)' }}>
+              <Cloud size={22} />
+            </button>
+          )}
           <button className="btn-primary" onClick={() => openModal()} style={{ marginLeft: '0.4rem' }}>
             <Plus size={20} /> <span className="hide-mobile">Novo</span>
           </button>

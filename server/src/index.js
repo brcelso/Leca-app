@@ -120,89 +120,65 @@ export default {
         });
       }
 
-      // 3.1. AbacatePay Checkout Endpoint
+      // 3.1. Mercado Pago Checkout Endpoint
       if (path === '/api/checkout' && request.method === 'POST') {
         const verifiedEmail = await verifyGoogleToken(token);
         if (!verifiedEmail) {
           return new Response('Unauthorized', { status: 401, headers: corsHeaders });
         }
 
-        // Get user name from DB
-        const userRow = await env.DB.prepare('SELECT name FROM users WHERE email = ?').bind(verifiedEmail).first();
-        const userName = userRow?.name || 'Cliente Leca';
-
-        const apiKey = env.ABACATE_PAY_API_KEY;
-        if (!apiKey) {
-          return new Response('AbacatePay API Key not configured', { status: 500, headers: corsHeaders });
+        const accessToken = env.MP_ACCESS_TOKEN;
+        if (!accessToken) {
+          return new Response('Mercado Pago Access Token not configured', { status: 500, headers: corsHeaders });
         }
 
-        // Create Billing in AbacatePay
-        // Note: Field is 'price', NOT 'unitPrice'. Root 'amount' is not expected.
-        const abacateRes = await fetch('https://api.abacatepay.com/v1/billing/create', {
+        // Create Preference in Mercado Pago
+        const mpRes = await fetch('https://api.mercadopago.com/checkout/preferences', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            frequency: 'ONE_TIME',
-            methods: ['PIX'],
-            products: [{
-              externalId: 'leca_pro_lifetime', // Revertido para o ID original de sucesso
-              name: 'Leca Pro - Acesso Vitalício',
-              quantity: 1,
-              price: 1990 // R$ 19,90 (Cents)
-            }],
-            returnUrl: `https://brcelso.github.io/Leca-app/?auth_token=${token}`,
-            completionUrl: `https://brcelso.github.io/Leca-app/?auth_token=${token}&payment_success=true`,
-            customer: {
-              email: verifiedEmail,
-              name: userName, // Removido o "(Leca)" para bater com o teste
-              taxId: '36713044808', // O CPF que funciona
-              cellphone: '11972509876'
-            }
+            items: [
+              {
+                title: 'Leca Pro - Acesso Vitalício (Teste)',
+                quantity: 1,
+                unit_price: 5.00,
+                currency_id: 'BRL'
+              }
+            ],
+            payer: {
+              email: verifiedEmail
+            },
+            payment_methods: {
+              included_payment_methods: [{ id: 'pix' }],
+              installments: 1
+            },
+            binary_mode: true, // Aprovação direta sem review
+            back_urls: {
+              success: `https://brcelso.github.io/Leca-app/`,
+              failure: `https://brcelso.github.io/Leca-app/`,
+              pending: `https://brcelso.github.io/Leca-app/`
+            },
+            auto_return: 'approved',
+            notification_url: 'https://leca-server.celsosilvajunior90.workers.dev/api/webhook/mercadopago',
+            external_reference: verifiedEmail
           })
         });
 
-        let abacateData;
-        try {
-          abacateData = await abacateRes.json();
-        } catch (e) {
-          return new Response(JSON.stringify({ error: 'AbacatePay returned invalid JSON', status: abacateRes.status }), {
-            status: 500,
+        const mpData = await mpRes.json();
+
+        if (!mpRes.ok) {
+          return new Response(JSON.stringify({ error: 'Mercado Pago API Error', details: mpData }), {
+            status: mpRes.status,
             headers: corsHeaders
           });
         }
 
-        if (!abacateData) {
-          return new Response(JSON.stringify({ error: 'Empty response from AbacatePay' }), {
-            status: 500,
-            headers: corsHeaders
-          });
-        }
-
-        // Handle cases where API returns 200 but has an error field or fails validation
-        const hasError = !abacateRes.ok || abacateData.error;
-        if (hasError) {
-          return new Response(JSON.stringify({
-            error: abacateData.error || 'AbacatePay API Error',
-            details: abacateData
-          }), {
-            status: abacateRes.status || 400,
-            headers: corsHeaders
-          });
-        }
-
-        // Final check before accessing url
-        const checkoutUrl = abacateData.data?.url;
+        const checkoutUrl = mpData.init_point;
         if (!checkoutUrl) {
-          return new Response(JSON.stringify({
-            error: 'Checkout URL not found in AbacatePay response',
-            details: abacateData
-          }), {
-            status: 500,
-            headers: corsHeaders
-          });
+          return new Response(JSON.stringify({ error: 'Checkout URL not found' }), { status: 500, headers: corsHeaders });
         }
 
         return new Response(JSON.stringify({ url: checkoutUrl }), {
@@ -210,39 +186,41 @@ export default {
         });
       }
 
-      // 3.2. AbacatePay Webhook Endpoint
-      if (path === '/api/webhook/abacate' && request.method === 'POST') {
+      // 3.2. Mercado Pago Webhook Endpoint
+      if (path === '/api/webhook/mercadopago' && request.method === 'POST') {
         let body;
         try {
           body = await request.json();
-          // Black Box Logging - Fundamental para Debug
           await env.DB.prepare('INSERT INTO debug_logs (message, payload) VALUES (?, ?)')
-            .bind('Webhook RECEIVED', JSON.stringify(body))
+            .bind('MP Webhook RECEIVED', JSON.stringify(body))
             .run();
         } catch (e) {
           return new Response('Invalid JSON', { status: 400, headers: corsHeaders });
         }
 
-        if (!body || !body.event) return new Response('Missing Event', { status: 400, headers: corsHeaders });
+        // Mercado Pago sends a notification with an ID, we need to fetch the payment details
+        if (body.type === 'payment' && body.data && body.data.id) {
+          const paymentId = body.data.id;
+          const accessToken = env.MP_ACCESS_TOKEN;
 
-        if (body.event === 'billing.paid') {
-          // Solução "Bala de Prata": Procura por e-mail em TODA a mensagem via Regex
-          const rawBody = JSON.stringify(body);
-          const emailMatch = rawBody.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-          const email = emailMatch ? emailMatch[0] : null;
+          const paymentRes = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+          });
 
-          if (email) {
-            const emailLower = email.toLowerCase();
-            await env.DB.prepare('UPDATE users SET is_premium = 1 WHERE email = ?')
-              .bind(emailLower)
-              .run();
-            await env.DB.prepare('INSERT INTO debug_logs (message, payload) VALUES (?, ?)')
-              .bind('Upgrade SUCCESS', 'Regex found email: ' + emailLower)
-              .run();
-          } else {
-            await env.DB.prepare('INSERT INTO debug_logs (message, payload) VALUES (?, ?)')
-              .bind('Upgrade FAILED - Regex found NO email', rawBody.substring(0, 500))
-              .run();
+          if (paymentRes.ok) {
+            const paymentData = await paymentRes.json();
+            if (paymentData.status === 'approved') {
+              const email = paymentData.external_reference || paymentData.payer?.email;
+              if (email) {
+                const emailLower = email.toLowerCase();
+                await env.DB.prepare('UPDATE users SET is_premium = 1 WHERE email = ?')
+                  .bind(emailLower)
+                  .run();
+                await env.DB.prepare('INSERT INTO debug_logs (message, payload) VALUES (?, ?)')
+                  .bind('Upgrade SUCCESS', 'MP Payment approved for: ' + emailLower)
+                  .run();
+              }
+            }
           }
         }
 

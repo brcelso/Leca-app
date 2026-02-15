@@ -19,3 +19,10 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 CREATE INDEX IF NOT EXISTS idx_user_email ON tasks(user_email);
+
+CREATE TABLE IF NOT EXISTS debug_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  message TEXT,
+  payload TEXT,
+  timestamp TEXT DEFAULT CURRENT_TIMESTAMP
+);
