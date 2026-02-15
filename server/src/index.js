@@ -198,11 +198,11 @@ export default {
           return new Response('Invalid JSON', { status: 400, headers: corsHeaders });
         }
 
-        // Mercado Pago sends a notification with an ID, we need to fetch the payment details
-        if (body.type === 'payment' && body.data && body.data.id) {
-          const paymentId = body.data.id;
-          const accessToken = env.MP_ACCESS_TOKEN;
+        const accessToken = env.MP_ACCESS_TOKEN;
 
+        // Case 1: Topic is 'payment'
+        if ((body.type === 'payment' || body.topic === 'payment') && (body.data?.id || body.id)) {
+          const paymentId = body.data?.id || body.id;
           const paymentRes = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
             headers: { 'Authorization': `Bearer ${accessToken}` }
           });
@@ -213,11 +213,32 @@ export default {
               const email = paymentData.external_reference || paymentData.payer?.email;
               if (email) {
                 const emailLower = email.toLowerCase();
-                await env.DB.prepare('UPDATE users SET is_premium = 1 WHERE email = ?')
-                  .bind(emailLower)
-                  .run();
+                await env.DB.prepare('UPDATE users SET is_premium = 1 WHERE email = ?').bind(emailLower).run();
                 await env.DB.prepare('INSERT INTO debug_logs (message, payload) VALUES (?, ?)')
                   .bind('Upgrade SUCCESS', 'MP Payment approved for: ' + emailLower)
+                  .run();
+              }
+            }
+          }
+        }
+
+        // Case 2: Topic is 'merchant_order' (Common in Checkout Pro)
+        if ((body.type === 'merchant_order' || body.topic === 'merchant_order') && (body.data?.id || body.id)) {
+          const orderId = body.data?.id || body.id;
+          const orderRes = await fetch(`https://api.mercadopago.com/v1/merchant_orders/${orderId}`, {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+          });
+
+          if (orderRes.ok) {
+            const orderData = await orderRes.json();
+            // Check if order is fully paid
+            if (orderData.status === 'closed' || orderData.order_status === 'paid') {
+              const email = orderData.external_reference || orderData.payer?.email;
+              if (email) {
+                const emailLower = email.toLowerCase();
+                await env.DB.prepare('UPDATE users SET is_premium = 1 WHERE email = ?').bind(emailLower).run();
+                await env.DB.prepare('INSERT INTO debug_logs (message, payload) VALUES (?, ?)')
+                  .bind('Upgrade SUCCESS (Order)', 'MP Order approved for: ' + emailLower)
                   .run();
               }
             }
